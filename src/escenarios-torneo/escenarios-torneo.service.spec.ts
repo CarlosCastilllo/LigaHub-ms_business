@@ -1,0 +1,167 @@
+import { jest } from '@jest/globals';
+import { NotFoundException } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { Torneo } from '../torneos/entities/torneo.entity';
+import { CreateEscenarioTorneoDto } from './dto/create-escenario-torneo.dto';
+import { UpdateEscenarioTorneoDto } from './dto/update-escenario-torneo.dto';
+import {
+  EscenarioTorneo,
+  EstadoAsignacionEscenario,
+} from './entities/escenario-torneo.entity';
+import { EscenarioTorneoMapper } from './mappers/escenario-torneo.mapper';
+import { EscenariosTorneoRepository } from './repositories/escenarios-torneo.repository';
+import { EscenariosTorneoService } from './escenarios-torneo.service';
+
+describe('EscenariosTorneoService', () => {
+  let service: EscenariosTorneoService;
+  let escenariosRepository: jest.Mocked<
+    Pick<Repository<EscenarioTorneo>, 'save' | 'find' | 'findOne' | 'remove'>
+  >;
+  let torneosRepository: jest.Mocked<Pick<Repository<Torneo>, 'findOne'>>;
+  let reportsRepository: jest.Mocked<
+    Pick<EscenariosTorneoRepository, 'countByTorneo'>
+  >;
+
+  const torneoId = '550e8400-e29b-41d4-a716-446655440000';
+  const escenarioId = '550e8400-e29b-41d4-a716-446655440010';
+
+  function torneo(id = torneoId): Torneo {
+    return Object.assign(new Torneo(), { id });
+  }
+
+  function asignacion(): EscenarioTorneo {
+    return Object.assign(new EscenarioTorneo(), {
+      id: '550e8400-e29b-41d4-a716-446655440001',
+      fecha_asignacion: '2026-11-08',
+      estado: EstadoAsignacionEscenario.ACTIVO,
+      escenario_id: escenarioId,
+      torneo: torneo(),
+      torneo_id: torneoId,
+    });
+  }
+
+  beforeEach(() => {
+    escenariosRepository = {
+      save: jest.fn(),
+      find: jest.fn(),
+      findOne: jest.fn(),
+      remove: jest.fn(),
+    };
+    torneosRepository = { findOne: jest.fn() };
+    reportsRepository = { countByTorneo: jest.fn() };
+    service = new EscenariosTorneoService(
+      escenariosRepository as unknown as Repository<EscenarioTorneo>,
+      torneosRepository as unknown as Repository<Torneo>,
+      reportsRepository as EscenariosTorneoRepository,
+    );
+  });
+
+  it('creates an assignment linked to an existing tournament', async () => {
+    const saved = asignacion();
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    escenariosRepository.save.mockResolvedValue(saved);
+    const dto: CreateEscenarioTorneoDto = {
+      fecha_asignacion: '2026-11-08',
+      estado: EstadoAsignacionEscenario.ACTIVO,
+      escenario_id: escenarioId,
+      torneo_id: torneoId,
+    };
+
+    await expect(service.create(dto)).resolves.toEqual(
+      EscenarioTorneoMapper.toResponseDto(saved),
+    );
+    expect(torneosRepository.findOne).toHaveBeenCalledWith({
+      where: { id: torneoId },
+    });
+    expect(escenariosRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ torneo: expect.objectContaining({ id: torneoId }) }),
+    );
+  });
+
+  it('does not validate the scenario UUID against an Escenario entity', async () => {
+    const saved = asignacion();
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    escenariosRepository.save.mockResolvedValue(saved);
+
+    await service.create({
+      fecha_asignacion: '2026-11-08',
+      estado: EstadoAsignacionEscenario.ACTIVO,
+      escenario_id: escenarioId,
+      torneo_id: torneoId,
+    });
+
+    expect(torneosRepository.findOne).toHaveBeenCalledTimes(1);
+    expect(escenariosRepository.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects creation when the tournament does not exist', async () => {
+    torneosRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.create({
+        fecha_asignacion: '2026-11-08',
+        estado: EstadoAsignacionEscenario.ACTIVO,
+        escenario_id: escenarioId,
+        torneo_id: torneoId,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(escenariosRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('lists assignments with the tournament relation loaded', async () => {
+    const item = asignacion();
+    escenariosRepository.find.mockResolvedValue([item]);
+
+    await expect(service.findAll()).resolves.toEqual([
+      EscenarioTorneoMapper.toResponseDto(item),
+    ]);
+    expect(escenariosRepository.find).toHaveBeenCalledWith({
+      relations: { torneo: true },
+    });
+  });
+
+  it('reassigns an assignment only to an existing tournament', async () => {
+    const item = asignacion();
+    const otherTorneo = torneo('550e8400-e29b-41d4-a716-446655440099');
+    escenariosRepository.findOne.mockResolvedValue(item);
+    torneosRepository.findOne.mockResolvedValue(otherTorneo);
+    escenariosRepository.save.mockImplementation(async (entity) => entity);
+
+    const result = await service.update(item.id, {
+      torneo_id: otherTorneo.id,
+    });
+
+    expect(item.torneo).toBe(otherTorneo);
+    expect(result.torneo_id).toBe(otherTorneo.id);
+  });
+
+  it('does not reassign an assignment to a missing tournament', async () => {
+    const item = asignacion();
+    escenariosRepository.findOne.mockResolvedValue(item);
+    torneosRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.update(item.id, { torneo_id: torneoId } as UpdateEscenarioTorneoDto),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(escenariosRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('checks the tournament before running the assignment count report', async () => {
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    reportsRepository.countByTorneo.mockResolvedValue(2);
+
+    await expect(service.getCountByTorneo(torneoId)).resolves.toEqual({
+      torneo_id: torneoId,
+      total_escenarios: 2,
+    });
+    expect(reportsRepository.countByTorneo).toHaveBeenCalledWith(torneoId);
+  });
+
+  it('returns 404 when an assignment does not exist', async () => {
+    escenariosRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.findOne('550e8400-e29b-41d4-a716-446655440001'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
