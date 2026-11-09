@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SecurityGuard } from './common/guards/security.guard';
 import { EscenariosTorneoModule } from './escenarios-torneo/escenarios-torneo.module';
 import { FasesModule } from './fases/fases.module';
 import { InscripcionesModule } from './inscripciones/inscripciones.module';
@@ -27,6 +29,12 @@ import { TorneosModule } from './torneos/torneos.module';
     TorneosModule,
     InscripcionesModule,
     EscenariosTorneoModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: SecurityGuard,
+    },
   ],
 })
 export class AppModule {}
