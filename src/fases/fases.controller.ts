@@ -7,7 +7,9 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
+import { FindFasesQueryDto } from './dto/find-fases-query.dto';
 import { UpdateFaseDto } from './dto/update-fase.dto';
 import { FasesService } from './fases.service';
 import { CreateFaseValidationPipe } from './pipes/create-fase-validation.pipe';
@@ -23,8 +25,8 @@ export class FasesController {
   }
 
   @Get()
-  findAll() {
-    return this.fasesService.findAll();
+  findAll(@Query() query: FindFasesQueryDto) {
+    return this.fasesService.findAll(query.tipo);
   }
 
   @Get(':id')

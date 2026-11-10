@@ -10,7 +10,7 @@ import { FaseResponseDto } from './dto/fase-response.dto';
 import { UpdateFaseDto } from './dto/update-fase.dto';
 import { FaseFinal } from './entities/fase-final.entity';
 import { FaseGrupos } from './entities/fase-grupos.entity';
-import { Fase } from './entities/fase.entity';
+import { Fase, TipoFase } from './entities/fase.entity';
 import { FaseMapper } from './mappers/fase.mapper';
 import type { CreateFaseInput } from './pipes/create-fase-validation.pipe';
 
@@ -32,10 +32,21 @@ export class FasesService {
     return this.faseMapper.toResponseDto(saved);
   }
 
-  async findAll(): Promise<FaseResponseDto[]> {
-    const fases = await this.fasesRepository.find({
-      relations: { torneo: true },
-    });
+  async findAll(tipo?: TipoFase): Promise<FaseResponseDto[]> {
+    if (!tipo) {
+      const fases = await this.fasesRepository.find({
+        relations: { torneo: true },
+      });
+      return this.faseMapper.toResponseDtoList(fases);
+    }
+
+    // `tipo` es la columna discriminadora de la herencia: no es una propiedad
+    // de la entidad, por eso se filtra con el query builder.
+    const fases = await this.fasesRepository
+      .createQueryBuilder('fase')
+      .leftJoinAndSelect('fase.torneo', 'torneo')
+      .where('fase.tipo = :tipo', { tipo })
+      .getMany();
     return this.faseMapper.toResponseDtoList(fases);
   }
 

@@ -173,4 +173,34 @@ describe('FasesService', () => {
     expect(repository.remove).toHaveBeenCalledWith(phase);
     expect(removed.message).toContain(phase.id);
   });
+
+  it('lists every phase when no type filter is given', async () => {
+    repository.find.mockResolvedValue([groupsPhase(), finalPhase()]);
+
+    const result = await service.findAll();
+
+    expect(result.map(({ tipo }) => tipo)).toEqual([
+      TipoFase.GRUPOS,
+      TipoFase.FINAL,
+    ]);
+  });
+
+  it('filters phases by the discriminator column when a type is given', async () => {
+    const queryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getMany: jest.fn<() => Promise<Fase[]>>().mockResolvedValue([finalPhase()]),
+    };
+    const createQueryBuilder = jest.fn().mockReturnValue(queryBuilder);
+    Object.assign(repository, { createQueryBuilder });
+
+    const result = await service.findAll(TipoFase.FINAL);
+
+    expect(queryBuilder.where).toHaveBeenCalledWith('fase.tipo = :tipo', {
+      tipo: TipoFase.FINAL,
+    });
+    expect(repository.find).not.toHaveBeenCalled();
+    expect(result).toHaveLength(1);
+    expect(result[0]?.tipo).toBe(TipoFase.FINAL);
+  });
 });

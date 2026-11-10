@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Proteger la API de cine con un **Guard** de NestJS. Antes de que un controlador ejecute cualquiera de sus endpoints, el guard:
+Proteger la API de negocio de LigaHub (`ms_business`) con un **Guard** de NestJS. Antes de que un controlador ejecute cualquiera de sus endpoints, el guard:
 
 1. Intercepta la solicitud HTTP.
 2. Comprueba que llegue el header `Authorization: Bearer <token>`.
@@ -21,7 +21,7 @@ El guard no valida ni decodifica el JWT localmente. El microservicio de segurida
 Cliente HTTP
     │ Authorization: Bearer eyJ...
     ▼
-Cinema API: SecurityGuard
+Business API: SecurityGuard
     │ POST MS_SECURITY/api/internal/security/permissions-validation
     │ Authorization: Bearer eyJ...
     │ { url: "/torneos", method: "POST" }
@@ -60,7 +60,7 @@ POST /api/internal/security/permissions-validation
 
 con este contrato:
 
-Solicitud enviada por Cinema API:
+Solicitud enviada por Business API:
 
 ```http
 Authorization: Bearer <token>
@@ -188,7 +188,7 @@ export class SecurityGuard implements CanActivate {
 
 ### Resultado de cada caso
 
-| Situación | Respuesta de Cinema API |
+| Situación | Respuesta de Business API |
 |---|---|
 | No llega `Authorization` | `401 Unauthorized` |
 | Header no tiene formato Bearer | `401 Unauthorized` |
@@ -330,7 +330,7 @@ El guard enviará al servicio remoto:
 
 1. `SecurityGuard` implementa `CanActivate` y se ejecuta antes de los controladores.
 2. El token se toma de `Authorization: Bearer <token>`.
-3. Cinema API reenvía el token al microservicio de seguridad junto con la ruta y el método.
+3. Business API reenvía el token al microservicio de seguridad junto con la ruta y el método.
 4. Solo la respuesta `{ allowed: true }` autoriza la solicitud.
 5. `false` se traduce en `403`; un token ausente o inválido, en `401`.
 6. Si el microservicio no está disponible, se responde `503` para no permitir accesos sin validar.

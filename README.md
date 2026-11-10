@@ -1,146 +1,324 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LigaHub — Microservicio de negocio (`ms_business`)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Microservicio de **torneos** de LigaHub. Administra los torneos, sus fases (de grupos y finales), las inscripciones de equipos y la asignación de escenarios deportivos. Todas sus rutas están protegidas por el microservicio de seguridad (`ms_security`).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Construido con **NestJS 12**, **TypeORM** y **MySQL**.
 
-## Description
+## Tabla de contenido
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- [Arquitectura](#arquitectura)
+- [Requisitos](#requisitos)
+- [Puesta en marcha](#puesta-en-marcha)
+- [Variables de entorno](#variables-de-entorno)
+- [Modelo de datos](#modelo-de-datos)
+- [Endpoints](#endpoints)
+- [Seguridad](#seguridad)
+- [Validaciones y errores](#validaciones-y-errores)
+- [Pruebas](#pruebas)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Guías](#guías)
 
-## Project setup
+## Arquitectura
 
-```bash
-$ npm install
+```text
+Frontend (Next.js, :3000)
+   │  Authorization: Bearer <JWT de ms_security>
+   │  (pasa por el proxy /api/business/* del frontend)
+   ▼
+ms_business (NestJS, :3030) ──► MySQL
+   │  SecurityGuard: ¿este token puede usar esta ruta y este método?
+   ▼
+ms_security (Spring Boot, :8181)
+   POST /api/internal/security/permissions-validation
 ```
 
-## Compile and run the project
+- **ms_security** emite los tokens y es dueño de usuarios, roles y permisos.
+- **ms_business** no valida el JWT por sí mismo: en cada petición le pregunta a `ms_security` si está permitida.
+- `deporte_id`, `equipo_id` y `escenario_id` son UUID de entidades que pertenecen a **otros microservicios**. Aquí se guardan y se validan como UUID, pero no hay llave foránea ni se comprueba que existan.
+
+## Requisitos
+
+- Node.js **20.19+** o **22.12+** (los paquetes de NestJS 12 son solo ESM).
+- npm.
+- MySQL con una base de datos creada para este servicio.
+- `ms_security` en ejecución, para poder autorizar las peticiones.
+
+## Puesta en marcha
 
 ```bash
-# development
-$ npm run start
+# 1. Dependencias
+npm install
 
-# watch mode
-$ npm run start:dev
+# 2. Variables de entorno: copia la plantilla y complétala
+cp .env.example .env
 
-# production mode
-$ npm run start:prod
+# 3. Crear las tablas (synchronize está desactivado, el esquema se maneja con migraciones)
+npm run migration:run
+
+# 4. Arrancar
+npm run start:dev      # desarrollo, con recarga
+npm run start          # sin recarga
+npm run build && npm run start:prod   # producción
 ```
 
-## Run tests
+Para deshacer la última migración aplicada: `npm run migration:revert`.
+
+Migraciones incluidas (`src/migrations/`):
+
+| Migración | Qué crea |
+|---|---|
+| `CreateFases` | Tabla `fases` con herencia de tabla única (columna `tipo`). |
+| `CreateTorneosAndRelateFases` | Tabla `torneos` y la FK `fases.torneo_id`. |
+| `CreateInscripcionesRelation` | Tabla `inscripciones` y su FK a `torneos`. |
+| `CreateEscenariosTorneoRelation` | Tabla `escenarios_torneo` y su FK a `torneos`. |
+
+## Variables de entorno
+
+Se leen del archivo `.env` (no versionado). La plantilla es [`.env.example`](.env.example).
+
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `PORT` | No | Puerto HTTP. Por defecto `3030`. |
+| `DB_HOST` | Sí | Host de MySQL. |
+| `DB_PORT` | Sí | Puerto de MySQL (normalmente `3306`). |
+| `DB_USER` | Sí | Usuario de MySQL. |
+| `DB_PASS` | Sí | Contraseña de MySQL. |
+| `DB_NAME` | Sí | Nombre de la base de datos. |
+| `MS_SECURITY` | Sí | URL base de `ms_security`, por ejemplo `http://localhost:8181`. Sin ella todas las rutas responden `503`. |
+
+## Modelo de datos
+
+```text
+Torneo 1 ──── N Fase              (abstracta; subtipos FaseGrupos y FaseFinal)
+Torneo 1 ──── N Inscripcion       (equipo_id → microservicio de equipos)
+Torneo 1 ──── N EscenarioTorneo   (escenario_id → microservicio de escenarios)
+```
+
+Al eliminar un torneo se eliminan en cascada sus fases, inscripciones y asignaciones de escenario. Todos los `id` son UUID generados por la base de datos y las fechas se envían como `YYYY-MM-DD`.
+
+### Torneo (`torneos`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `nombre` | texto | Obligatorio, máx. 255. |
+| `descripcion` | texto | Obligatorio. |
+| `estado` | enum | `PENDIENTE` · `EN_CURSO` · `FINALIZADO`. |
+| `max_equipos` | entero | ≥ 1. |
+| `deporte_id` | UUID | Deporte del torneo (otro microservicio). |
+
+### Fase (`fases`)
+
+`Fase` es una clase **abstracta** con herencia de tabla única: todos los subtipos se guardan en la tabla `fases` y la columna `tipo` indica cuál es.
+
+| Campo común | Tipo | Reglas |
+|---|---|---|
+| `tipo` | enum | `GRUPOS` o `FINAL`. Solo se envía al crear; no se puede cambiar. |
+| `numero_orden` | entero | ≥ 1. |
+| `fecha_inicio` | fecha | `YYYY-MM-DD`. |
+| `fecha_fin` | fecha | `YYYY-MM-DD`, igual o posterior a `fecha_inicio`. |
+| `estado` | enum | `PENDIENTE` · `EN_CURSO` · `FINALIZADA`. |
+| `torneo_id` | UUID | Torneo existente. |
+
+| Subtipo | Campos propios |
+|---|---|
+| `GRUPOS` (`FaseGrupos`) | `cantidad_grupos` (≥ 1), `equipos_por_grupo` (≥ 2) |
+| `FINAL` (`FaseFinal`) | `numero_partidos` (≥ 1), `modalidad` (`PARTIDO_UNICO` · `IDA_Y_VUELTA`) |
+
+### Inscripción (`inscripciones`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `fecha_inscripcion` | fecha | `YYYY-MM-DD`. |
+| `estado` | enum | `PENDIENTE` · `ACEPTADA` · `RECHAZADA`. |
+| `equipo_id` | UUID | Equipo inscrito (otro microservicio). |
+| `torneo_id` | UUID | Torneo existente. |
+
+### Escenario de torneo (`escenarios_torneo`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `fecha_asignacion` | fecha | `YYYY-MM-DD`. |
+| `estado` | enum | `ACTIVO` · `INACTIVO`. |
+| `escenario_id` | UUID | Escenario deportivo (otro microservicio). |
+| `torneo_id` | UUID | Torneo existente. |
+
+## Endpoints
+
+Todas las rutas exigen el header `Authorization: Bearer <token>` (ver [Seguridad](#seguridad)). En `PATCH` todos los campos son opcionales. `DELETE` responde `{ "message": "... deleted successfully" }`.
+
+### Torneos
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/torneos` | Crea un torneo. |
+| `GET` | `/torneos` | Lista los torneos. |
+| `GET` | `/torneos/:id` | Obtiene un torneo. |
+| `GET` | `/torneos/:id/fases` | Lista las fases del torneo. |
+| `PATCH` | `/torneos/:id` | Actualiza un torneo. |
+| `DELETE` | `/torneos/:id` | Elimina el torneo y, en cascada, sus fases, inscripciones y escenarios. |
+
+```json
+POST /torneos
+{
+  "nombre": "Copa Apertura",
+  "descripcion": "Torneo interfacultades",
+  "estado": "PENDIENTE",
+  "max_equipos": 16,
+  "deporte_id": "550e8400-e29b-41d4-a716-446655440020"
+}
+```
+
+### Fases
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/fases` | Crea una fase de grupos o final según `tipo`. |
+| `GET` | `/fases` | Lista todas las fases. |
+| `GET` | `/fases?tipo=FINAL` | Lista solo las fases finales. |
+| `GET` | `/fases?tipo=GRUPOS` | Lista solo las fases de grupos. |
+| `GET` | `/fases/:id` | Obtiene una fase. |
+| `PATCH` | `/fases/:id` | Actualiza una fase. No se puede cambiar `tipo` ni enviar campos del otro subtipo. |
+| `DELETE` | `/fases/:id` | Elimina una fase. |
+
+`tipo` en la consulta es opcional; cualquier valor distinto de `GRUPOS` o `FINAL` responde `400`.
+
+```json
+POST /fases   (fase final)
+{
+  "tipo": "FINAL",
+  "numero_orden": 2,
+  "fecha_inicio": "2026-11-20",
+  "fecha_fin": "2026-11-30",
+  "estado": "PENDIENTE",
+  "torneo_id": "550e8400-e29b-41d4-a716-446655440000",
+  "numero_partidos": 2,
+  "modalidad": "IDA_Y_VUELTA"
+}
+```
+
+```json
+POST /fases   (fase de grupos)
+{
+  "tipo": "GRUPOS",
+  "numero_orden": 1,
+  "fecha_inicio": "2026-11-01",
+  "fecha_fin": "2026-11-15",
+  "estado": "PENDIENTE",
+  "torneo_id": "550e8400-e29b-41d4-a716-446655440000",
+  "cantidad_grupos": 4,
+  "equipos_por_grupo": 4
+}
+```
+
+La respuesta incluye `tipo` y solo los campos del subtipo correspondiente.
+
+### Inscripciones
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/inscripciones` | Inscribe un equipo en un torneo. |
+| `GET` | `/inscripciones` | Lista las inscripciones. |
+| `GET` | `/inscripciones/:id` | Obtiene una inscripción. |
+| `GET` | `/inscripciones/reports/torneo/:torneoId/count` | Cuenta las inscripciones de un torneo: `{ "torneo_id", "total_inscripciones" }`. |
+| `PATCH` | `/inscripciones/:id` | Actualiza una inscripción. |
+| `DELETE` | `/inscripciones/:id` | Elimina una inscripción. |
+
+```json
+POST /inscripciones
+{
+  "fecha_inscripcion": "2026-11-09",
+  "estado": "PENDIENTE",
+  "equipo_id": "550e8400-e29b-41d4-a716-446655440010",
+  "torneo_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Escenarios de torneo
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/escenarios-torneo` | Asigna un escenario a un torneo. |
+| `GET` | `/escenarios-torneo` | Lista las asignaciones. |
+| `GET` | `/escenarios-torneo/:id` | Obtiene una asignación. |
+| `GET` | `/escenarios-torneo/reports/torneo/:torneoId/count` | Cuenta los escenarios de un torneo: `{ "torneo_id", "total_escenarios" }`. |
+| `PATCH` | `/escenarios-torneo/:id` | Actualiza una asignación. |
+| `DELETE` | `/escenarios-torneo/:id` | Elimina una asignación. |
+
+```json
+POST /escenarios-torneo
+{
+  "fecha_asignacion": "2026-11-09",
+  "estado": "ACTIVO",
+  "escenario_id": "550e8400-e29b-41d4-a716-446655440030",
+  "torneo_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+## Seguridad
+
+`SecurityGuard` ([src/common/guards/security.guard.ts](src/common/guards/security.guard.ts)) está registrado como guard **global**, así que protege todas las rutas, incluidas las que se agreguen en el futuro.
+
+En cada petición:
+
+1. Exige el header `Authorization: Bearer <token>`.
+2. Llama a `POST {MS_SECURITY}/api/internal/security/permissions-validation` con el mismo token y el cuerpo `{ "url": <ruta>, "method": <método> }`.
+3. Solo deja pasar la petición si `ms_security` responde `{ "allowed": true }`.
+
+| Situación | Respuesta |
+|---|---|
+| Falta el header o no tiene formato `Bearer <token>` | `401` |
+| Token inválido, expirado o sesión cerrada | `401` |
+| El usuario no tiene el permiso | `403` |
+| `MS_SECURITY` no configurada, o `ms_security` caído o lento (más de 5 s) | `503` |
+
+**Cómo se dan los permisos.** Los permisos se registran en `ms_security` como pares método + URL, con `{id}` en lugar de los identificadores (por ejemplo `PATCH /fases/{id}`). El seeder de `ms_security` ya se los asigna todos al rol `ADMIN`. Para otro rol, asígnalos desde la matriz de permisos del frontend.
+
+La consulta (`?tipo=...`) **no forma parte del permiso**: quien tenga `GET /fases` puede listar fases de cualquier tipo.
+
+## Validaciones y errores
+
+- Un `ValidationPipe` global con `whitelist` y `forbidNonWhitelisted`: los campos que no están en el DTO se rechazan con `400`.
+- Los `:id` deben ser UUID válidos (`ParseUUIDPipe`); si no lo son, `400`.
+- Al crear una fase, un pipe propio (`CreateFaseValidationPipe`) elige el DTO según `tipo` y valida solo los campos de ese subtipo.
+- `fecha_fin` no puede ser anterior a `fecha_inicio`, tanto al crear como en un `PATCH` parcial.
+- Si un `torneo_id` o un `:id` no existe, `404`.
+
+## Pruebas
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm test            # pruebas unitarias (servicios, controladores y pipes)
+npm run test:cov    # con cobertura
+npm run test:e2e    # pruebas end-to-end (test/)
+npm run lint        # oxlint
 ```
 
-## Fases CRUD
+Las pruebas unitarias usan repositorios simulados: no necesitan MySQL ni `ms_security`.
 
-The API exposes CRUD routes for tournaments and phases. Create a tournament first with `POST /torneos`, then use its returned `id` as `torneo_id` in `POST /fases`. `GET /torneos/:id/fases` lists the phases associated with that tournament. Configure the MySQL connection through the `DB_*` environment variables, then apply the schema migrations before starting the service:
+## Estructura del proyecto
 
-```bash
-$ npm run migration:run
+```text
+src/
+├─ common/guards/        SecurityGuard (autorización contra ms_security)
+├─ torneos/              CRUD de torneos
+├─ fases/                CRUD de fases (herencia GRUPOS / FINAL), pipe y validador de fechas
+├─ inscripciones/        CRUD de inscripciones y reporte por torneo
+├─ escenarios-torneo/    CRUD de asignaciones de escenarios y reporte por torneo
+├─ migrations/           Migraciones de TypeORM
+├─ app.module.ts         Conexión a MySQL y registro del guard global
+└─ main.ts               Arranque y ValidationPipe global
 ```
 
-To revert the most recently applied migration:
+Cada módulo sigue la misma estructura: `entities/`, `dto/`, `mappers/`, `repositories/` (cuando hay reportes), `*.service.ts`, `*.controller.ts`, `*.module.ts` y sus pruebas `*.spec.ts`.
 
-```bash
-$ npm run migration:revert
-```
+## Guías
 
-## Deployment
+La carpeta [`guias/`](guias/) explica paso a paso cómo se construyó cada parte:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
-
-```bash
-$ npx @nestjs/observe link
-```
-
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand:
-
-```bash
-$ npm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Guía | Tema |
+|---|---|
+| `0_1_Estructura_del_proyecto.md` | Conceptos base de NestJS. |
+| `1_PrimerCrud.md` | CRUD de fases con clase abstracta. |
+| `3_Relacion_1_N*.md`, `4_...EscenarioTorneo.md` | Relaciones 1:N de torneos con fases, inscripciones y escenarios. |
+| `5_guardian (1).md` | Guard de seguridad contra `ms_security`. |
+| `6_Filtro_fases_por_tipo.md` | Filtro `GET /fases?tipo=`. |
+| `7_Frontend_escenarios_y_fase_final.md` | Apartados del frontend para escenarios de torneo y fase final. |
