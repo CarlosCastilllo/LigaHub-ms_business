@@ -7,15 +7,18 @@ export class EscenarioTorneoMapper {
   static toEntity(
     dto: CreateEscenarioTorneoDto,
     torneo: EscenarioTorneo['torneo'],
+    escenario: EscenarioTorneo['escenario'],
   ): EscenarioTorneo {
     return Object.assign(new EscenarioTorneo(), {
       fecha_asignacion: dto.fecha_asignacion,
       estado: dto.estado,
-      escenario_id: dto.escenario_id,
       torneo,
+      escenario,
     });
   }
 
+  // Las relaciones (torneo y escenario) las reasigna el service
+  // despues de validar que existan.
   static mergeEntity(
     entity: EscenarioTorneo,
     dto: UpdateEscenarioTorneoDto,
@@ -24,9 +27,6 @@ export class EscenarioTorneoMapper {
       entity.fecha_asignacion = dto.fecha_asignacion;
     }
     if (dto.estado !== undefined) entity.estado = dto.estado;
-    if (dto.escenario_id !== undefined) {
-      entity.escenario_id = dto.escenario_id;
-    }
     return entity;
   }
 
@@ -35,7 +35,7 @@ export class EscenarioTorneoMapper {
       id: entity.id,
       fecha_asignacion: entity.fecha_asignacion,
       estado: entity.estado,
-      escenario_id: entity.escenario_id,
+      escenario_id: entity.escenario?.id ?? entity.escenario_id,
       torneo_id: entity.torneo?.id ?? entity.torneo_id,
     };
   }

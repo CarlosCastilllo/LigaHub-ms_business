@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Escenario } from '../escenarios/entities/escenario.entity';
 import { Torneo } from '../torneos/entities/torneo.entity';
 import { CreateEscenarioTorneoDto } from './dto/create-escenario-torneo.dto';
 import { EscenarioTorneoResponseDto } from './dto/escenario-torneo-response.dto';
@@ -17,6 +18,8 @@ export class EscenariosTorneoService {
     private readonly escenariosTorneoRepository: Repository<EscenarioTorneo>,
     @InjectRepository(Torneo)
     private readonly torneosRepository: Repository<Torneo>,
+    @InjectRepository(Escenario)
+    private readonly escenariosRepository: Repository<Escenario>,
     private readonly customEscenariosTorneoRepository: EscenariosTorneoRepository,
   ) {}
 
@@ -24,14 +27,15 @@ export class EscenariosTorneoService {
     dto: CreateEscenarioTorneoDto,
   ): Promise<EscenarioTorneoResponseDto> {
     const torneo = await this.findTorneo(dto.torneo_id);
-    const entity = EscenarioTorneoMapper.toEntity(dto, torneo);
+    const escenario = await this.findEscenario(dto.escenario_id);
+    const entity = EscenarioTorneoMapper.toEntity(dto, torneo, escenario);
     const saved = await this.escenariosTorneoRepository.save(entity);
     return EscenarioTorneoMapper.toResponseDto(saved);
   }
 
   async findAll(): Promise<EscenarioTorneoResponseDto[]> {
     const asignaciones = await this.escenariosTorneoRepository.find({
-      relations: { torneo: true },
+      relations: { torneo: true, escenario: true },
     });
     return EscenarioTorneoMapper.toResponseDtoList(asignaciones);
   }
@@ -47,6 +51,9 @@ export class EscenariosTorneoService {
     const asignacion = await this.findAsignacion(id);
     if (dto.torneo_id !== undefined) {
       asignacion.torneo = await this.findTorneo(dto.torneo_id);
+    }
+    if (dto.escenario_id !== undefined) {
+      asignacion.escenario = await this.findEscenario(dto.escenario_id);
     }
     const saved = await this.escenariosTorneoRepository.save(
       EscenarioTorneoMapper.mergeEntity(asignacion, dto),
@@ -74,7 +81,7 @@ export class EscenariosTorneoService {
   private async findAsignacion(id: string): Promise<EscenarioTorneo> {
     const asignacion = await this.escenariosTorneoRepository.findOne({
       where: { id },
-      relations: { torneo: true },
+      relations: { torneo: true, escenario: true },
     });
     if (!asignacion) {
       throw new NotFoundException(
@@ -90,5 +97,15 @@ export class EscenariosTorneoService {
       throw new NotFoundException(`Torneo with id ${id} not found`);
     }
     return torneo;
+  }
+
+  private async findEscenario(id: string): Promise<Escenario> {
+    const escenario = await this.escenariosRepository.findOne({
+      where: { id },
+    });
+    if (!escenario) {
+      throw new NotFoundException(`Escenario with id ${id} not found`);
+    }
+    return escenario;
   }
 }

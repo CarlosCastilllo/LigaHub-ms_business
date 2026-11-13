@@ -1,3 +1,4 @@
+import { Escenario } from '../../escenarios/entities/escenario.entity';
 import { Torneo } from '../../torneos/entities/torneo.entity';
 import {
   Column,
@@ -29,7 +30,17 @@ export class EscenarioTorneo {
   })
   estado!: EstadoAsignacionEscenario;
 
-  @Column({ type: 'uuid' })
+  // Entidad intermedia de la relacion N:N Torneo <-> Escenario:
+  // es la duena de ambas FKs (escenario_id y torneo_id).
+  @ManyToOne(() => Escenario, (escenario) => escenario.escenarios_torneo, {
+    cascade: false,
+    nullable: false,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'escenario_id' })
+  escenario!: Relation<Escenario>;
+
+  @RelationId((escenarioTorneo: EscenarioTorneo) => escenarioTorneo.escenario)
   escenario_id!: string;
 
   @ManyToOne(() => Torneo, (torneo) => torneo.escenarios_torneo, {
