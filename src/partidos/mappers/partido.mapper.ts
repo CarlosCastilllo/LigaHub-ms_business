@@ -11,12 +11,14 @@ export class PartidoMapper {
   static toEntity(
     dto: CreatePartidoDto,
     escenario: Partido['escenario'],
+    equipoLocal: Partido['equipo_local'],
+    equipoVisitante: Partido['equipo_visitante'],
   ): Partido {
     return Object.assign(new Partido(), {
       fecha_hora: new Date(dto.fecha_hora),
       estado: dto.estado ?? EstadoPartido.PROGRAMADO,
-      equipo_local_id: dto.equipo_local_id,
-      equipo_visitante_id: dto.equipo_visitante_id,
+      equipo_local: equipoLocal,
+      equipo_visitante: equipoVisitante,
       goles_local: dto.goles_local ?? 0,
       goles_visitante: dto.goles_visitante ?? 0,
       escenario,
@@ -29,12 +31,6 @@ export class PartidoMapper {
       entity.fecha_hora = new Date(dto.fecha_hora);
     }
     if (dto.estado !== undefined) entity.estado = dto.estado;
-    if (dto.equipo_local_id !== undefined) {
-      entity.equipo_local_id = dto.equipo_local_id;
-    }
-    if (dto.equipo_visitante_id !== undefined) {
-      entity.equipo_visitante_id = dto.equipo_visitante_id;
-    }
     if (dto.goles_local !== undefined) entity.goles_local = dto.goles_local;
     if (dto.goles_visitante !== undefined) {
       entity.goles_visitante = dto.goles_visitante;
@@ -47,8 +43,9 @@ export class PartidoMapper {
       id: entity.id,
       fecha_hora: entity.fecha_hora,
       estado: entity.estado,
-      equipo_local_id: entity.equipo_local_id,
-      equipo_visitante_id: entity.equipo_visitante_id,
+      equipo_local_id: entity.equipo_local?.id ?? entity.equipo_local_id,
+      equipo_visitante_id:
+        entity.equipo_visitante?.id ?? entity.equipo_visitante_id,
       goles_local: entity.goles_local,
       goles_visitante: entity.goles_visitante,
       escenario_id: entity.escenario?.id ?? entity.escenario_id,

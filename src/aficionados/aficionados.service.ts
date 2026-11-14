@@ -15,6 +15,7 @@ const AFICIONADO_RELATIONS = {
   boletas: true,
   apuestas: true,
   metodos_pago_aficionado: true,
+  equipos_preferidos: true,
 } as const;
 
 @Injectable()
@@ -71,6 +72,11 @@ export class AficionadosService {
     if (aficionado.apuestas?.length) {
       throw new ConflictException(
         `Aficionado #${id} has apuestas; delete them first`,
+      );
+    }
+    if (aficionado.equipos_preferidos?.length) {
+      throw new ConflictException(
+        `Aficionado #${id} has equipo preferences; delete them first`,
       );
     }
     await this.aficionadosRepository.remove(aficionado);

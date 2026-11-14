@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Escenario } from '../escenarios/entities/escenario.entity';
+import { Equipo } from '../equipos/entities/equipo.entity';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { PartidoResponseDto } from './dto/partido-response.dto';
 import { UpdatePartidoDto } from './dto/update-partido.dto';
@@ -19,6 +20,8 @@ const PARTIDO_RELATIONS = {
   apuestas: true,
   anotaciones: true,
   pelota: true,
+  equipo_local: true,
+  equipo_visitante: true,
 } as const;
 
 @Injectable()
@@ -28,13 +31,17 @@ export class PartidosService {
     private readonly partidosRepository: Repository<Partido>,
     @InjectRepository(Escenario)
     private readonly escenariosRepository: Repository<Escenario>,
+    @InjectRepository(Equipo)
+    private readonly equiposRepository: Repository<Equipo>,
   ) {}
 
   async create(dto: CreatePartidoDto): Promise<PartidoResponseDto> {
     this.assertEquiposDistintos(dto.equipo_local_id, dto.equipo_visitante_id);
+    const equipoLocal = await this.findEquipo(dto.equipo_local_id);
+    const equipoVisitante = await this.findEquipo(dto.equipo_visitante_id);
     const escenario = await this.findEscenario(dto.escenario_id);
     const saved = await this.partidosRepository.save(
-      PartidoMapper.toEntity(dto, escenario),
+      PartidoMapper.toEntity(dto, escenario, equipoLocal, equipoVisitante),
     );
     return PartidoMapper.toResponseDto(saved);
   }
@@ -60,6 +67,14 @@ export class PartidosService {
       dto.equipo_local_id ?? partido.equipo_local_id,
       dto.equipo_visitante_id ?? partido.equipo_visitante_id,
     );
+    if (dto.equipo_local_id !== undefined) {
+      partido.equipo_local = await this.findEquipo(dto.equipo_local_id);
+    }
+    if (dto.equipo_visitante_id !== undefined) {
+      partido.equipo_visitante = await this.findEquipo(
+        dto.equipo_visitante_id,
+      );
+    }
     if (dto.escenario_id !== undefined) {
       partido.escenario = await this.findEscenario(dto.escenario_id);
     }
@@ -120,5 +135,13 @@ export class PartidosService {
       throw new NotFoundException(`Escenario with id ${id} not found`);
     }
     return escenario;
+  }
+
+  private async findEquipo(id: string): Promise<Equipo> {
+    const equipo = await this.equiposRepository.findOne({ where: { id } });
+    if (!equipo) {
+      throw new NotFoundException(`Equipo with id ${id} not found`);
+    }
+    return equipo;
   }
 }

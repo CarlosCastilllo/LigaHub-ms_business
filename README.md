@@ -34,7 +34,7 @@ ms_security (Spring Boot, :8181)
 
 - **ms_security** emite los tokens y es dueño de usuarios, roles y permisos.
 - **ms_business** no valida el JWT por sí mismo: en cada petición le pregunta a `ms_security` si está permitida.
-- `deporte_id`, `equipo_id` y `escenario_id` son UUID de entidades que pertenecen a **otros microservicios**. Aquí se guardan y se validan como UUID, pero no hay llave foránea ni se comprueba que existan.
+- `escenario_id` identifica una entidad de otro microservicio; se almacena como UUID sin llave foránea. `Deporte`, `Equipo`, `Jugador` y sus relaciones pertenecen a este microservicio.
 
 ## Requisitos
 
@@ -71,6 +71,15 @@ Migraciones incluidas (`src/migrations/`):
 | `CreateTorneosAndRelateFases` | Tabla `torneos` y la FK `fases.torneo_id`. |
 | `CreateInscripcionesRelation` | Tabla `inscripciones` y su FK a `torneos`. |
 | `CreateEscenariosTorneoRelation` | Tabla `escenarios_torneo` y su FK a `torneos`. |
+| `CreateEscenariosPartidosAficionados` | Tablas de escenarios, partidos, aficionados, anotaciones, pelotas, boletas, apuestas y métodos de pago, con sus FKs. |
+| `CreateJugadoresAndPosicionesEspaciales` | Tabla `jugadores`, responsable de anotaciones y tabla `posiciones_espaciales` con FKs a jugadores y pelotas. |
+| `CreateEquiposAndEquipoJugador` | Tablas `equipos`, `equipo_jugador` y `aficionados_equipos`, más sus relaciones con fases, aficionados, inscripciones, partidos y jugadores. |
+| `CreateHabilidadesAndHabilidadJugador` | Tabla `habilidades` y asociación N:N `habilidad-jugador` entre habilidades y jugadores. |
+| `CreateDeportesAndEquiposDeportes` | Tabla `deportes`, jerarquía recursiva, FK desde torneos y asociación N:N `equipos-deportes`. |
+
+La migración `CreateJugadoresAndPosicionesEspaciales` requiere que no existan anotaciones previas: cada anotación debe tener un jugador responsable y no es posible inferirlo automáticamente. Si ya hay datos, asígnales jugadores antes de aplicar esta migración.
+La migración `CreateEquiposAndEquipoJugador` requiere que no haya inscripciones ni partidos existentes, porque sus `equipo_id` actuales no se pueden vincular de forma segura a equipos que aún no existen.
+La migración `CreateDeportesAndEquiposDeportes` detiene su ejecución si hay torneos cuyo `deporte_id` no corresponda a un deporte existente. Antes de ejecutarla, crea o reconcilia esos deportes para que la nueva FK pueda aplicarse.
 
 ## Variables de entorno
 
@@ -90,11 +99,77 @@ Se leen del archivo `.env` (no versionado). La plantilla es [`.env.example`](.en
 
 ```text
 Torneo 1 ──── N Fase              (abstracta; subtipos FaseGrupos y FaseFinal)
-Torneo 1 ──── N Inscripcion       (equipo_id → microservicio de equipos)
+Torneo 1 ──── N Inscripcion       (inscripción a un Equipo)
 Torneo 1 ──── N EscenarioTorneo   (escenario_id → microservicio de escenarios)
+Equipo 1 ──── N Inscripcion
+Equipo N ──── 1 FaseGrupos (subtipo de Fase)
+Equipo N ──── N Partido (mediante local/visitante)
+Equipo N ──── N Torneo (mediante Inscripcion)
+Equipo 1 ──── N EquipoJugador N ──── 1 Jugador
+Equipo N ──── N Aficionado (mediante AficionadoEquipo)
+Equipo N ──── N Deporte (mediante EquipoDeporte)
+Deporte 1 ──── N Torneo
+Deporte 1 ──── N Deporte (jerarquía opcional padre-hijos)
+Jugador 1 ──── N Anotacion
+Jugador 1 ──── N PosicionEspacial ──── N 1 Pelota
+Habilidad 1 ──── N HabilidadJugador N ──── 1 Jugador
 ```
 
 Al eliminar un torneo se eliminan en cascada sus fases, inscripciones y asignaciones de escenario. Todos los `id` son UUID generados por la base de datos y las fechas se envían como `YYYY-MM-DD`.
+
+Cada `PosicionEspacial` registra `x`, `y` y `tiempo_segundos`, y pertenece exactamente a un jugador o a una pelota. Cada anotación requiere el jugador responsable. Los jugadores con anotaciones o posiciones no se pueden eliminar hasta borrar o reasignar esos registros.
+`EquipoJugador` es la entidad intermedia del historial jugador-equipo: cada registro contiene las fechas de inicio y fin (esta última puede ser nula si la relación sigue activa). Los equipos con historial, inscripciones o partidos no se pueden eliminar.
+`FaseGrupos` es el subtipo existente de `Fase` y puede estar relacionado con varios equipos; cada equipo puede tener una fase de grupos opcional asignada mediante `fase_grupos_id`. Si se elimina esa fase, la asignación del equipo se limpia. `Partido` funciona como entidad intermedia de los enfrentamientos entre equipos, guardando los roles de local y visitante. La inscripción es la asociación equipo-torneo y conserva su fecha y estado.
+`EquipoDeporte` es la asociación N:N sin campos extra entre equipos y deportes; cada pareja es única. Un deporte puede tener cero o un deporte padre y varios hijos, y es el deporte referenciado por los torneos. Los deportes relacionados con torneos, equipos o hijos no se pueden eliminar hasta quitar esas relaciones.
+
+### Equipo (`equipos`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `nombre` | texto | Obligatorio, máx. 150. |
+
+### Historial de equipos por jugador (`equipo_jugador`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `equipo_id` | UUID | Equipo existente. |
+| `jugador_id` | UUID | Jugador existente. |
+| `fecha_inicio` | fecha | Obligatoria, `YYYY-MM-DD`. |
+| `fecha_fin` | fecha | Opcional; si se informa debe ser igual o posterior a `fecha_inicio`. |
+
+### Preferencias de equipos (`aficionados_equipos`)
+
+Asociación N:N sin campos adicionales entre un aficionado y sus equipos preferidos. La pareja `aficionado_id` + `equipo_id` es única.
+
+### Jugador (`jugadores`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `nombres` | texto | Obligatorio, máx. 100. |
+| `apellidos` | texto | Obligatorio, máx. 100. |
+| `fecha_nacimiento` | fecha | Obligatoria, formato `YYYY-MM-DD`. |
+| `nacionalidad` | texto | Obligatoria, máx. 100. |
+
+### Habilidad (`habilidades`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `nombre` | texto | Obligatorio, máx. 150. |
+| `descripcion` | texto | Obligatoria. |
+
+`HabilidadJugador` es la asociación N:N sin campos extra; cada pareja
+`habilidad_id` + `jugador_id` es única. La tabla intermedia se llama
+`habilidad-jugador` (con guion). No se puede eliminar una habilidad o un jugador
+mientras tenga asociaciones; primero deben eliminarse las filas intermedias.
+
+### Posición espacial (`posiciones_espaciales`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `x`, `y` | número | Coordenadas de la posición. |
+| `tiempo_segundos` | entero | Segundo transcurrido del partido, ≥ 0. |
+| `jugador_id` | UUID | Jugador posicionado; exactamente uno de `jugador_id` y `pelota_id` debe informarse. |
+| `pelota_id` | UUID | Pelota posicionada; exactamente uno de `jugador_id` y `pelota_id` debe informarse. |
 
 ### Torneo (`torneos`)
 
@@ -104,7 +179,15 @@ Al eliminar un torneo se eliminan en cascada sus fases, inscripciones y asignaci
 | `descripcion` | texto | Obligatorio. |
 | `estado` | enum | `PENDIENTE` · `EN_CURSO` · `FINALIZADO`. |
 | `max_equipos` | entero | ≥ 1. |
-| `deporte_id` | UUID | Deporte del torneo (otro microservicio). |
+| `deporte_id` | UUID | Deporte existente (FK a `deportes`). |
+
+### Deporte (`deportes`)
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `nombre` | texto | Obligatorio, máx. 150. |
+| `descripcion` | texto | Obligatoria. |
+| `deporte_padre_id` | UUID | Opcional; identifica el deporte padre y no puede crear ciclos. |
 
 ### Fase (`fases`)
 
@@ -130,7 +213,7 @@ Al eliminar un torneo se eliminan en cascada sus fases, inscripciones y asignaci
 |---|---|---|
 | `fecha_inscripcion` | fecha | `YYYY-MM-DD`. |
 | `estado` | enum | `PENDIENTE` · `ACEPTADA` · `RECHAZADA`. |
-| `equipo_id` | UUID | Equipo inscrito (otro microservicio). |
+| `equipo_id` | UUID | Equipo inscrito (FK a `equipos`). |
 | `torneo_id` | UUID | Torneo existente. |
 
 ### Escenario de torneo (`escenarios_torneo`)
@@ -156,6 +239,8 @@ Todas las rutas exigen el header `Authorization: Bearer <token>` (ver [Seguridad
 | `GET` | `/torneos/:id/fases` | Lista las fases del torneo. |
 | `PATCH` | `/torneos/:id` | Actualiza un torneo. |
 | `DELETE` | `/torneos/:id` | Elimina el torneo y, en cascada, sus fases, inscripciones y escenarios. |
+
+`deporte_id` debe identificar un deporte creado previamente en `/deportes`.
 
 ```json
 POST /torneos
@@ -211,6 +296,85 @@ POST /fases   (fase de grupos)
 ```
 
 La respuesta incluye `tipo` y solo los campos del subtipo correspondiente.
+
+### Jugadores y posiciones espaciales
+
+Ambos recursos ofrecen `POST`, `GET` (colección y `/:id`), `PATCH /:id` y `DELETE /:id` en `/jugadores` y `/posiciones-espaciales`. Al crear una posición, se debe enviar solo una de estas referencias:
+
+```json
+{
+  "x": 23.5,
+  "y": 17,
+  "tiempo_segundos": 42,
+  "jugador_id": "550e8400-e29b-41d4-a716-446655440210"
+}
+```
+
+Para registrar la posición del balón, se usa `pelota_id` en lugar de `jugador_id`. Las anotaciones (`/anotaciones`) ahora también requieren `jugador_id` además de `partido_id`.
+
+### Equipos e historial de jugadores
+
+`/equipos` y `/equipo-jugador` ofrecen `POST`, `GET` (colección y `/:id`), `PATCH /:id` y `DELETE /:id`. Para registrar una vinculación de jugador a equipo:
+
+```json
+{
+  "equipo_id": "550e8400-e29b-41d4-a716-446655440220",
+  "jugador_id": "550e8400-e29b-41d4-a716-446655440210",
+  "fecha_inicio": "2026-01-15",
+  "fecha_fin": null
+}
+```
+
+### Habilidades de jugadores
+
+`/habilidades` y `/habilidad-jugador` ofrecen `POST`, `GET` (colección y
+`/:id`), `PATCH /:id` y `DELETE /:id`. Una habilidad requiere `nombre` y
+`descripcion`; para asignarla a un jugador se crea una fila intermedia:
+
+```json
+{
+  "habilidad_id": "550e8400-e29b-41d4-a716-446655440310",
+  "jugador_id": "550e8400-e29b-41d4-a716-446655440210"
+}
+```
+
+La pareja habilidad-jugador no se puede repetir. Las entidades enlazadas no se
+pueden eliminar hasta borrar sus asociaciones.
+
+### Deportes y equipos
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST`, `GET` | `/deportes` | Crear y listar deportes. |
+| `GET`, `PATCH`, `DELETE` | `/deportes/:id` | Consultar, actualizar o eliminar un deporte. |
+| `POST`, `GET` | `/equipos-deportes` | Crear y listar asociaciones equipo-deporte. |
+| `GET`, `PATCH`, `DELETE` | `/equipos-deportes/:id` | Consultar, actualizar o eliminar una asociación. |
+
+Cada deporte requiere `nombre` y `descripcion`; `deporte_padre_id` es opcional
+para construir una jerarquía. `/equipos-deportes` recibe `equipo_id` y
+`deporte_id`. No se permite repetir una pareja ni eliminar deportes o equipos
+que todavía tengan asociaciones.
+
+```json
+POST /deportes
+{
+  "nombre": "Fútbol",
+  "descripcion": "Deporte de equipo",
+  "deporte_padre_id": null
+}
+```
+
+```json
+POST /equipos-deportes
+{
+  "equipo_id": "550e8400-e29b-41d4-a716-446655440220",
+  "deporte_id": "550e8400-e29b-41d4-a716-446655440420"
+}
+```
+
+### Equipos preferidos
+
+`/aficionados-equipos` ofrece `POST`, `GET` (colección y `/:id`), `PATCH /:id` y `DELETE /:id`. Para crear una preferencia se envían `aficionado_id` y `equipo_id`. Un equipo se puede asociar o desasociar de una `FaseGrupos` existente mediante `fase_grupos_id` en `POST /equipos` o `PATCH /equipos/:id`.
 
 ### Inscripciones
 
@@ -279,7 +443,7 @@ La consulta (`?tipo=...`) **no forma parte del permiso**: quien tenga `GET /fase
 
 - Un `ValidationPipe` global con `whitelist` y `forbidNonWhitelisted`: los campos que no están en el DTO se rechazan con `400`.
 - Los `:id` deben ser UUID válidos (`ParseUUIDPipe`); si no lo son, `400`.
-- Al crear una fase, un pipe propio (`CreateFaseValidationPipe`) elige el DTO según `tipo` y valida solo los campos de ese subtipo.
+- El DTO único de creación valida condicionalmente los campos propios de `GRUPOS` o `FINAL`; el service comprueba que no se mezclen atributos de ambos subtipos y valida el rango de fechas también en creación y actualización.
 - `fecha_fin` no puede ser anterior a `fecha_inicio`, tanto al crear como en un `PATCH` parcial.
 - Si un `torneo_id` o un `:id` no existe, `404`.
 

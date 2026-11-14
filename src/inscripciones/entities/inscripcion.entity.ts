@@ -1,4 +1,5 @@
 import { Torneo } from '../../torneos/entities/torneo.entity';
+import { Equipo } from '../../equipos/entities/equipo.entity';
 import {
   Column,
   Entity,
@@ -30,7 +31,15 @@ export class Inscripcion {
   })
   estado!: EstadoInscripcion;
 
-  @Column({ type: 'uuid' })
+  @ManyToOne(() => Equipo, (equipo) => equipo.inscripciones, {
+    cascade: false,
+    nullable: false,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'equipo_id' })
+  equipo!: Relation<Equipo>;
+
+  @RelationId((inscripcion: Inscripcion) => inscripcion.equipo)
   equipo_id!: string;
 
   @ManyToOne(() => Torneo, (torneo) => torneo.inscripciones, {

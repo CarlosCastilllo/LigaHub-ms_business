@@ -6,13 +6,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Torneo } from '../torneos/entities/torneo.entity';
+import { CreateFaseDto } from './dto/create-fase.dto';
 import { FaseResponseDto } from './dto/fase-response.dto';
 import { UpdateFaseDto } from './dto/update-fase.dto';
 import { FaseFinal } from './entities/fase-final.entity';
 import { FaseGrupos } from './entities/fase-grupos.entity';
 import { Fase, TipoFase } from './entities/fase.entity';
 import { FaseMapper } from './mappers/fase.mapper';
-import type { CreateFaseInput } from './pipes/create-fase-validation.pipe';
 
 @Injectable()
 export class FasesService {
@@ -24,7 +24,13 @@ export class FasesService {
     private readonly faseMapper: FaseMapper,
   ) {}
 
-  async create(dto: CreateFaseInput): Promise<FaseResponseDto> {
+  async create(dto: CreateFaseDto): Promise<FaseResponseDto> {
+    this.assertCreateSubtypeFields(dto);
+    if (dto.fecha_fin < dto.fecha_inicio) {
+      throw new BadRequestException(
+        'fecha_fin debe ser igual o posterior a fecha_inicio',
+      );
+    }
     const torneo = await this.findTorneo(dto.torneo_id);
     const entity = this.faseMapper.toEntity(dto);
     entity.torneo = torneo;
@@ -115,5 +121,28 @@ export class FasesService {
       throw new NotFoundException(`Torneo with id ${id} not found`);
     }
     return torneo;
+  }
+
+  private assertCreateSubtypeFields(dto: CreateFaseDto): void {
+    const hasGruposFields =
+      dto.cantidad_grupos !== undefined ||
+      dto.equipos_por_grupo !== undefined;
+    const hasFinalFields =
+      dto.numero_partidos !== undefined || dto.modalidad !== undefined;
+
+    if (
+      (dto.tipo === TipoFase.GRUPOS &&
+        (dto.cantidad_grupos === undefined ||
+          dto.equipos_por_grupo === undefined ||
+          hasFinalFields)) ||
+      (dto.tipo === TipoFase.FINAL &&
+        (dto.numero_partidos === undefined ||
+          dto.modalidad === undefined ||
+          hasGruposFields))
+    ) {
+      throw new BadRequestException(
+        'Los atributos enviados deben corresponder al tipo de fase',
+      );
+    }
   }
 }

@@ -10,17 +10,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { FindFasesQueryDto } from './dto/find-fases-query.dto';
+import { CreateFaseDto } from './dto/create-fase.dto';
 import { UpdateFaseDto } from './dto/update-fase.dto';
 import { FasesService } from './fases.service';
-import { CreateFaseValidationPipe } from './pipes/create-fase-validation.pipe';
-import type { CreateFaseInput } from './pipes/create-fase-validation.pipe';
 
 @Controller('fases')
 export class FasesController {
   constructor(private readonly fasesService: FasesService) {}
 
   @Post()
-  create(@Body(CreateFaseValidationPipe) dto: CreateFaseInput) {
+  create(@Body() dto: CreateFaseDto) {
     return this.fasesService.create(dto);
   }
 

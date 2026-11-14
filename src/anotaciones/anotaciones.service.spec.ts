@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { EstadoPartido, Partido } from '../partidos/entities/partido.entity';
+import { Jugador } from '../jugadores/entities/jugador.entity';
 import { AnotacionesService } from './anotaciones.service';
 import { CreateAnotacionDto } from './dto/create-anotacion.dto';
 import { Anotacion } from './entities/anotacion.entity';
@@ -13,10 +14,12 @@ describe('AnotacionesService', () => {
     Pick<Repository<Anotacion>, 'save' | 'find' | 'findOne' | 'remove'>
   >;
   let partidosRepository: jest.Mocked<Pick<Repository<Partido>, 'findOne'>>;
+  let jugadoresRepository: jest.Mocked<Pick<Repository<Jugador>, 'findOne'>>;
 
   const partidoId = '550e8400-e29b-41d4-a716-446655440060';
   const otroPartidoId = '550e8400-e29b-41d4-a716-446655440061';
   const anotacionId = '550e8400-e29b-41d4-a716-446655440120';
+  const jugadorId = '550e8400-e29b-41d4-a716-446655440121';
 
   function partido(
     estado = EstadoPartido.EN_JUEGO,
@@ -32,6 +35,8 @@ describe('AnotacionesService', () => {
       descripcion: 'Gol de cabeza tras tiro de esquina',
       partido: partido(),
       partido_id: partidoId,
+      jugador: Object.assign(new Jugador(), { id: jugadorId }),
+      jugador_id: jugadorId,
     });
   }
 
@@ -39,6 +44,7 @@ describe('AnotacionesService', () => {
     minuto: 23,
     descripcion: 'Gol de cabeza tras tiro de esquina',
     partido_id: partidoId,
+    jugador_id: jugadorId,
   };
 
   beforeEach(() => {
@@ -49,12 +55,17 @@ describe('AnotacionesService', () => {
       remove: jest.fn(),
     };
     partidosRepository = { findOne: jest.fn() };
+    jugadoresRepository = { findOne: jest.fn() };
+    jugadoresRepository.findOne.mockResolvedValue(
+      Object.assign(new Jugador(), { id: jugadorId }),
+    );
     anotacionesRepository.save.mockImplementation(
       async (entity) => entity as Anotacion,
     );
     service = new AnotacionesService(
       anotacionesRepository as unknown as Repository<Anotacion>,
       partidosRepository as unknown as Repository<Partido>,
+      jugadoresRepository as unknown as Repository<Jugador>,
     );
   });
 
@@ -70,6 +81,7 @@ describe('AnotacionesService', () => {
         minuto: 23,
         descripcion: 'Gol de cabeza tras tiro de esquina',
         partido_id: partidoId,
+        jugador_id: jugadorId,
       });
     },
   );
@@ -102,7 +114,7 @@ describe('AnotacionesService', () => {
       AnotacionMapper.toResponseDto(item),
     ]);
     expect(anotacionesRepository.find).toHaveBeenCalledWith({
-      relations: { partido: true },
+      relations: { partido: true, jugador: true },
     });
   });
 

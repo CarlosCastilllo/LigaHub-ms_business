@@ -4,7 +4,13 @@ import { CreateFaseDto } from './create-fase.dto';
 import { ModalidadFinal } from '../entities/fase-final.entity';
 
 export class UpdateFaseDto extends PartialType(
-  OmitType(CreateFaseDto, ['tipo'] as const),
+  OmitType(CreateFaseDto, [
+    'tipo',
+    'cantidad_grupos',
+    'equipos_por_grupo',
+    'numero_partidos',
+    'modalidad',
+  ] as const),
 ) {
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt()

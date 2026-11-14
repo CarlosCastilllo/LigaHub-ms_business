@@ -5,10 +5,10 @@ import {
   IsUUID,
   Matches,
   Min,
-  Validate,
+  ValidateIf,
 } from 'class-validator';
 import { EstadoFase, TipoFase } from '../entities/fase.entity';
-import { FechaFinNoAnteriorConstraint } from '../validators/fecha-fin-no-anterior.constraint';
+import { ModalidadFinal } from '../entities/fase-final.entity';
 
 export class CreateFaseDto {
   @IsEnum(TipoFase)
@@ -24,7 +24,6 @@ export class CreateFaseDto {
 
   @IsDateString({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  @Validate(FechaFinNoAnteriorConstraint)
   fecha_fin!: string;
 
   @IsEnum(EstadoFase)
@@ -32,4 +31,23 @@ export class CreateFaseDto {
 
   @IsUUID()
   torneo_id!: string;
+
+  @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.GRUPOS)
+  @IsInt()
+  @Min(1)
+  cantidad_grupos?: number;
+
+  @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.GRUPOS)
+  @IsInt()
+  @Min(2)
+  equipos_por_grupo?: number;
+
+  @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.FINAL)
+  @IsInt()
+  @Min(1)
+  numero_partidos?: number;
+
+  @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.FINAL)
+  @IsEnum(ModalidadFinal)
+  modalidad?: ModalidadFinal;
 }

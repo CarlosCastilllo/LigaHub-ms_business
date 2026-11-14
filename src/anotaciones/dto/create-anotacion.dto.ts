@@ -21,4 +21,7 @@ export class CreateAnotacionDto {
 
   @IsUUID()
   partido_id!: string;
+
+  @IsUUID()
+  jugador_id!: string;
 }

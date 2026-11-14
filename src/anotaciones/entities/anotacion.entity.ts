@@ -1,4 +1,5 @@
 import { Partido } from '../../partidos/entities/partido.entity';
+import { Jugador } from '../../jugadores/entities/jugador.entity';
 import {
   Column,
   Entity,
@@ -32,4 +33,15 @@ export class Anotacion {
 
   @RelationId((anotacion: Anotacion) => anotacion.partido)
   partido_id!: string;
+
+  @ManyToOne(() => Jugador, (jugador) => jugador.anotaciones, {
+    cascade: false,
+    nullable: false,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'jugador_id' })
+  jugador!: Relation<Jugador>;
+
+  @RelationId((anotacion: Anotacion) => anotacion.jugador)
+  jugador_id!: string;
 }

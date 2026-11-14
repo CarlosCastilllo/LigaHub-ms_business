@@ -8,9 +8,12 @@ import { Torneo } from './entities/torneo.entity';
 import { TorneosController } from './torneos.controller';
 import { TorneosService } from './torneos.service';
 import { TorneoMapper } from './mappers/torneo.mapper';
+import { Deporte } from '../deportes/entities/deporte.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Torneo, Fase, FaseGrupos, FaseFinal])],
+  imports: [
+    TypeOrmModule.forFeature([Torneo, Fase, FaseGrupos, FaseFinal, Deporte]),
+  ],
   controllers: [TorneosController],
   providers: [TorneosService, TorneoMapper, FaseMapper],
   exports: [TorneosService],

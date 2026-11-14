@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Torneo } from '../torneos/entities/torneo.entity';
+import { Equipo } from '../equipos/entities/equipo.entity';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { UpdateInscripcionDto } from './dto/update-inscripcion.dto';
 import {
@@ -18,6 +19,7 @@ describe('InscripcionesService', () => {
     Pick<Repository<Inscripcion>, 'save' | 'find' | 'findOne' | 'remove'>
   >;
   let torneosRepository: jest.Mocked<Pick<Repository<Torneo>, 'findOne'>>;
+  let equiposRepository: jest.Mocked<Pick<Repository<Equipo>, 'findOne'>>;
   let reportsRepository: jest.Mocked<
     Pick<InscripcionesRepository, 'countByTorneo'>
   >;
@@ -29,11 +31,16 @@ describe('InscripcionesService', () => {
     return Object.assign(new Torneo(), { id: torneoId });
   }
 
+  function equipo(): Equipo {
+    return Object.assign(new Equipo(), { id: equipoId, nombre: 'Tigres' });
+  }
+
   function inscripcion(): Inscripcion {
     return Object.assign(new Inscripcion(), {
       id: '550e8400-e29b-41d4-a716-446655440001',
       fecha_inscripcion: '2026-03-01',
       estado: EstadoInscripcion.PENDIENTE,
+      equipo: equipo(),
       equipo_id: equipoId,
       torneo: torneo(),
       torneo_id: torneoId,
@@ -48,10 +55,12 @@ describe('InscripcionesService', () => {
       remove: jest.fn(),
     };
     torneosRepository = { findOne: jest.fn() };
+    equiposRepository = { findOne: jest.fn() };
     reportsRepository = { countByTorneo: jest.fn() };
     service = new InscripcionesService(
       inscripcionesRepository as unknown as Repository<Inscripcion>,
       torneosRepository as unknown as Repository<Torneo>,
+      equiposRepository as unknown as Repository<Equipo>,
       reportsRepository as InscripcionesRepository,
     );
   });
@@ -59,6 +68,7 @@ describe('InscripcionesService', () => {
   it('creates an inscription linked to an existing tournament', async () => {
     const saved = inscripcion();
     torneosRepository.findOne.mockResolvedValue(torneo());
+    equiposRepository.findOne.mockResolvedValue(equipo());
     inscripcionesRepository.save.mockResolvedValue(saved);
     const dto: CreateInscripcionDto = {
       fecha_inscripcion: '2026-03-01',
@@ -73,6 +83,9 @@ describe('InscripcionesService', () => {
     expect(torneosRepository.findOne).toHaveBeenCalledWith({
       where: { id: torneoId },
     });
+    expect(equiposRepository.findOne).toHaveBeenCalledWith({
+      where: { id: equipoId },
+    });
     expect(inscripcionesRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ torneo: expect.objectContaining({ id: torneoId }) }),
     );
@@ -80,6 +93,22 @@ describe('InscripcionesService', () => {
 
   it('rejects creation when the tournament does not exist', async () => {
     torneosRepository.findOne.mockResolvedValue(null);
+    equiposRepository.findOne.mockResolvedValue(equipo());
+
+    await expect(
+      service.create({
+        fecha_inscripcion: '2026-03-01',
+        estado: EstadoInscripcion.PENDIENTE,
+        equipo_id: equipoId,
+        torneo_id: torneoId,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(inscripcionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creation when the team does not exist', async () => {
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    equiposRepository.findOne.mockResolvedValue(null);
 
     await expect(
       service.create({
@@ -100,7 +129,7 @@ describe('InscripcionesService', () => {
       InscripcionMapper.toResponseDto(item),
     ]);
     expect(inscripcionesRepository.find).toHaveBeenCalledWith({
-      relations: { torneo: true },
+      relations: { torneo: true, equipo: true },
     });
   });
 
@@ -111,6 +140,7 @@ describe('InscripcionesService', () => {
     });
     inscripcionesRepository.findOne.mockResolvedValue(item);
     torneosRepository.findOne.mockResolvedValue(otherTorneo);
+    equiposRepository.findOne.mockResolvedValue(equipo());
     inscripcionesRepository.save.mockImplementation(async (entity) => entity);
 
     const result = await service.update(item.id, {
@@ -125,6 +155,7 @@ describe('InscripcionesService', () => {
     const item = inscripcion();
     inscripcionesRepository.findOne.mockResolvedValue(item);
     torneosRepository.findOne.mockResolvedValue(null);
+    equiposRepository.findOne.mockResolvedValue(equipo());
 
     await expect(
       service.update(item.id, { torneo_id: torneoId } as UpdateInscripcionDto),

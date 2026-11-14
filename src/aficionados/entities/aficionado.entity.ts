@@ -1,6 +1,7 @@
 import { Apuesta } from '../../apuestas/entities/apuesta.entity';
 import { Boleta } from '../../boletas/entities/boleta.entity';
 import { MetodoPagoAficionado } from '../../metodos-pago-aficionado/entities/metodo-pago-aficionado.entity';
+import { AficionadoEquipo } from '../../aficionado-equipo/entities/aficionado-equipo.entity';
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('aficionados')
@@ -38,4 +39,11 @@ export class Aficionado {
     { cascade: false },
   )
   metodos_pago_aficionado?: MetodoPagoAficionado[];
+
+  @OneToMany(
+    () => AficionadoEquipo,
+    (aficionadoEquipo) => aficionadoEquipo.aficionado,
+    { cascade: false },
+  )
+  equipos_preferidos?: AficionadoEquipo[];
 }

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Deporte } from '../deportes/entities/deporte.entity';
 import { FaseResponseDto } from '../fases/dto/fase-response.dto';
 import { Fase } from '../fases/entities/fase.entity';
 import { FaseMapper } from '../fases/mappers/fase.mapper';
@@ -17,14 +18,17 @@ export class TorneosService {
     private readonly torneosRepository: Repository<Torneo>,
     @InjectRepository(Fase)
     private readonly fasesRepository: Repository<Fase>,
+    @InjectRepository(Deporte)
+    private readonly deportesRepository: Repository<Deporte>,
     private readonly torneoMapper: TorneoMapper,
     private readonly faseMapper: FaseMapper,
   ) {}
 
   async create(dto: CreateTorneoDto): Promise<TorneoResponseDto> {
-    const saved = await this.torneosRepository.save(
-      this.torneoMapper.toEntity(dto),
-    );
+    const deporte = await this.findDeporte(dto.deporte_id);
+    const torneo = this.torneoMapper.toEntity(dto);
+    torneo.deporte = deporte;
+    const saved = await this.torneosRepository.save(torneo);
     return this.torneoMapper.toResponseDto(saved);
   }
 
@@ -49,6 +53,9 @@ export class TorneosService {
 
   async update(id: string, dto: UpdateTorneoDto): Promise<TorneoResponseDto> {
     const torneo = await this.findTorneo(id);
+    if (dto.deporte_id !== undefined) {
+      torneo.deporte = await this.findDeporte(dto.deporte_id);
+    }
     const saved = await this.torneosRepository.save(
       this.torneoMapper.mergeEntity(torneo, dto),
     );
@@ -67,5 +74,13 @@ export class TorneosService {
       throw new NotFoundException(`Torneo with id ${id} not found`);
     }
     return torneo;
+  }
+
+  private async findDeporte(id: string): Promise<Deporte> {
+    const deporte = await this.deportesRepository.findOne({ where: { id } });
+    if (!deporte) {
+      throw new NotFoundException(`Deporte with id ${id} not found`);
+    }
+    return deporte;
   }
 }

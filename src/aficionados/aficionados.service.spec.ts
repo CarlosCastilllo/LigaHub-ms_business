@@ -19,6 +19,7 @@ describe('AficionadosService', () => {
     boletas: true,
     apuestas: true,
     metodos_pago_aficionado: true,
+    equipos_preferidos: true,
   };
 
   function aficionado(id = aficionadoId): Aficionado {
@@ -31,6 +32,7 @@ describe('AficionadosService', () => {
       boletas: [],
       apuestas: [],
       metodos_pago_aficionado: [],
+      equipos_preferidos: [],
     });
   }
 
@@ -169,6 +171,17 @@ describe('AficionadosService', () => {
     item.metodos_pago_aficionado = [
       Object.assign(new MetodoPagoAficionado(), { id: 'mpa' }),
     ];
+    mockTabla(item);
+
+    await expect(service.remove(aficionadoId)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(aficionadosRepository.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not remove an aficionado with equipo preferences', async () => {
+    const item = aficionado();
+    item.equipos_preferidos = [{}];
     mockTabla(item);
 
     await expect(service.remove(aficionadoId)).rejects.toBeInstanceOf(

@@ -115,6 +115,41 @@ describe('FasesService', () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
+  it('rejects creation with fields from the other subtype', async () => {
+    await expect(
+      service.create({
+        tipo: TipoFase.GRUPOS,
+        numero_orden: 1,
+        fecha_inicio: '2026-03-01',
+        fecha_fin: '2026-03-15',
+        estado: EstadoFase.PENDIENTE,
+        torneo_id: '550e8400-e29b-41d4-a716-446655440000',
+        cantidad_grupos: 4,
+        equipos_por_grupo: 4,
+        modalidad: ModalidadFinal.PARTIDO_UNICO,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(torneosRepository.findOne).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creation when the end date is before the start date', async () => {
+    await expect(
+      service.create({
+        tipo: TipoFase.GRUPOS,
+        numero_orden: 1,
+        fecha_inicio: '2026-03-15',
+        fecha_fin: '2026-03-01',
+        estado: EstadoFase.PENDIENTE,
+        torneo_id: '550e8400-e29b-41d4-a716-446655440000',
+        cantidad_grupos: 4,
+        equipos_por_grupo: 4,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(torneosRepository.findOne).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when a phase does not exist', async () => {
     repository.findOne.mockResolvedValue(null);
 

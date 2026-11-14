@@ -6,7 +6,6 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { FasesController } from '../fases/fases.controller';
 import { FasesService } from '../fases/fases.service';
-import { CreateFaseValidationPipe } from '../fases/pipes/create-fase-validation.pipe';
 import { TorneosController } from './torneos.controller';
 import { TorneosService } from './torneos.service';
 
@@ -55,7 +54,6 @@ describe('Tournament and phase CRUD routes', () => {
       providers: [
         { provide: TorneosService, useValue: torneosService },
         { provide: FasesService, useValue: fasesService },
-        CreateFaseValidationPipe,
       ],
     }).compile();
 

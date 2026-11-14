@@ -10,6 +10,7 @@ import { Apuesta } from '../apuestas/entities/apuesta.entity';
 import { Boleta } from '../boletas/entities/boleta.entity';
 import { EstadoPelota, Pelota } from '../pelotas/entities/pelota.entity';
 import { Escenario } from '../escenarios/entities/escenario.entity';
+import { Equipo } from '../equipos/entities/equipo.entity';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { EstadoPartido, Partido } from './entities/partido.entity';
 import { PartidoMapper } from './mappers/partido.mapper';
@@ -23,6 +24,7 @@ describe('PartidosService', () => {
   let escenariosRepository: jest.Mocked<
     Pick<Repository<Escenario>, 'findOne'>
   >;
+  let equiposRepository: jest.Mocked<Pick<Repository<Equipo>, 'findOne'>>;
 
   const escenarioId = '550e8400-e29b-41d4-a716-446655440010';
   const partidoId = '550e8400-e29b-41d4-a716-446655440060';
@@ -38,12 +40,18 @@ describe('PartidosService', () => {
     });
   }
 
+  function equipo(id: string): Equipo {
+    return Object.assign(new Equipo(), { id, nombre: `Equipo ${id}` });
+  }
+
   function partido(): Partido {
     return Object.assign(new Partido(), {
       id: partidoId,
       fecha_hora: new Date('2026-11-15T19:30:00-05:00'),
       estado: EstadoPartido.PROGRAMADO,
+      equipo_local: equipo(localId),
       equipo_local_id: localId,
+      equipo_visitante: equipo(visitanteId),
       equipo_visitante_id: visitanteId,
       goles_local: 0,
       goles_visitante: 0,
@@ -67,12 +75,18 @@ describe('PartidosService', () => {
       remove: jest.fn(),
     };
     escenariosRepository = { findOne: jest.fn() };
+    equiposRepository = { findOne: jest.fn() };
+    equiposRepository.findOne.mockImplementation(async ({ where }) => {
+      const id = (where as { id: string }).id;
+      return equipo(id);
+    });
     partidosRepository.save.mockImplementation(
       async (entity) => entity as Partido,
     );
     service = new PartidosService(
       partidosRepository as unknown as Repository<Partido>,
       escenariosRepository as unknown as Repository<Escenario>,
+      equiposRepository as unknown as Repository<Equipo>,
     );
   });
 
@@ -84,6 +98,7 @@ describe('PartidosService', () => {
     expect(escenariosRepository.findOne).toHaveBeenCalledWith({
       where: { id: escenarioId },
     });
+    expect(equiposRepository.findOne).toHaveBeenCalledTimes(2);
     expect(result).toEqual(
       expect.objectContaining({
         fecha_hora: new Date('2026-11-15T19:30:00-05:00'),
@@ -97,6 +112,15 @@ describe('PartidosService', () => {
 
   it('rejects creation when the escenario does not exist', async () => {
     escenariosRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.create(createDto)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(partidosRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creation when a referenced team does not exist', async () => {
+    equiposRepository.findOne.mockResolvedValue(null);
 
     await expect(service.create(createDto)).rejects.toBeInstanceOf(
       NotFoundException,
@@ -130,6 +154,8 @@ describe('PartidosService', () => {
         apuestas: true,
         anotaciones: true,
         pelota: true,
+        equipo_local: true,
+        equipo_visitante: true,
       },
     });
   });

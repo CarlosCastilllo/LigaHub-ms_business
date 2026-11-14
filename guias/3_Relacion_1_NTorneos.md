@@ -523,7 +523,7 @@ Rutas resultantes:
 
 ## 11) Pruebas en Postman
 
-Usa `Content-Type: application/json`. Primero crea un torneo mediante el CRUD de Torneo ya implementado. El `deporte_id` debe ser un UUID permitido por la configuración de la aplicación.
+Usa `Content-Type: application/json`. Primero crea un deporte mediante `POST /deportes`, luego crea el torneo enviando su UUID como `deporte_id`.
 
 ### 11.1 Crear torneo (si todavía no existe)
 

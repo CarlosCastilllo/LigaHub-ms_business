@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EstadoPartido, Partido } from '../partidos/entities/partido.entity';
+import { Jugador } from '../jugadores/entities/jugador.entity';
 import { AnotacionResponseDto } from './dto/anotacion-response.dto';
 import { CreateAnotacionDto } from './dto/create-anotacion.dto';
 import { UpdateAnotacionDto } from './dto/update-anotacion.dto';
@@ -25,19 +26,22 @@ export class AnotacionesService {
     private readonly anotacionesRepository: Repository<Anotacion>,
     @InjectRepository(Partido)
     private readonly partidosRepository: Repository<Partido>,
+    @InjectRepository(Jugador)
+    private readonly jugadoresRepository: Repository<Jugador>,
   ) {}
 
   async create(dto: CreateAnotacionDto): Promise<AnotacionResponseDto> {
     const partido = await this.findPartidoJugado(dto.partido_id);
+    const jugador = await this.findJugador(dto.jugador_id);
     const saved = await this.anotacionesRepository.save(
-      AnotacionMapper.toEntity(dto, partido),
+      AnotacionMapper.toEntity(dto, partido, jugador),
     );
     return AnotacionMapper.toResponseDto(saved);
   }
 
   async findAll(): Promise<AnotacionResponseDto[]> {
     const anotaciones = await this.anotacionesRepository.find({
-      relations: { partido: true },
+      relations: { partido: true, jugador: true },
     });
     return AnotacionMapper.toResponseDtoList(anotaciones);
   }
@@ -54,6 +58,9 @@ export class AnotacionesService {
     if (dto.partido_id !== undefined) {
       anotacion.partido = await this.findPartidoJugado(dto.partido_id);
     }
+    if (dto.jugador_id !== undefined) {
+      anotacion.jugador = await this.findJugador(dto.jugador_id);
+    }
     const saved = await this.anotacionesRepository.save(
       AnotacionMapper.mergeEntity(anotacion, dto),
     );
@@ -69,7 +76,7 @@ export class AnotacionesService {
   private async findAnotacion(id: string): Promise<Anotacion> {
     const anotacion = await this.anotacionesRepository.findOne({
       where: { id },
-      relations: { partido: true },
+      relations: { partido: true, jugador: true },
     });
     if (!anotacion) {
       throw new NotFoundException(`Anotacion with id ${id} not found`);
@@ -88,5 +95,13 @@ export class AnotacionesService {
       );
     }
     return partido;
+  }
+
+  private async findJugador(id: string): Promise<Jugador> {
+    const jugador = await this.jugadoresRepository.findOne({ where: { id } });
+    if (!jugador) {
+      throw new NotFoundException(`Jugador with id ${id} not found`);
+    }
+    return jugador;
   }
 }

@@ -3,6 +3,7 @@ import { Apuesta } from '../../apuestas/entities/apuesta.entity';
 import { Boleta } from '../../boletas/entities/boleta.entity';
 import { Escenario } from '../../escenarios/entities/escenario.entity';
 import { Pelota } from '../../pelotas/entities/pelota.entity';
+import { Equipo } from '../../equipos/entities/equipo.entity';
 import {
   Column,
   Entity,
@@ -37,19 +38,33 @@ export class Partido {
   })
   estado!: EstadoPartido;
 
-  // Equipo vive en otro microservicio: se guardan como UUID sin FK,
-  // igual que equipo_id en Inscripcion.
-  @Column({ type: 'uuid' })
-  equipo_local_id!: string;
-
-  @Column({ type: 'uuid' })
-  equipo_visitante_id!: string;
-
   @Column({ type: 'int', default: 0 })
   goles_local!: number;
 
   @Column({ type: 'int', default: 0 })
   goles_visitante!: number;
+
+  @ManyToOne(() => Equipo, (equipo) => equipo.partidos_locales, {
+    cascade: false,
+    nullable: false,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'equipo_local_id' })
+  equipo_local!: Relation<Equipo>;
+
+  @RelationId((partido: Partido) => partido.equipo_local)
+  equipo_local_id!: string;
+
+  @ManyToOne(() => Equipo, (equipo) => equipo.partidos_visitantes, {
+    cascade: false,
+    nullable: false,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'equipo_visitante_id' })
+  equipo_visitante!: Relation<Equipo>;
+
+  @RelationId((partido: Partido) => partido.equipo_visitante)
+  equipo_visitante_id!: string;
 
   // Lado dueno de la relacion 1:N Escenario -> Partido (FK escenario_id).
   // NO ACTION: un escenario con partidos no se puede borrar.

@@ -7,11 +7,13 @@ export class AnotacionMapper {
   static toEntity(
     dto: CreateAnotacionDto,
     partido: Anotacion['partido'],
+    jugador: Anotacion['jugador'],
   ): Anotacion {
     return Object.assign(new Anotacion(), {
       minuto: dto.minuto,
       descripcion: dto.descripcion,
       partido,
+      jugador,
     });
   }
 
@@ -28,6 +30,7 @@ export class AnotacionMapper {
       minuto: entity.minuto,
       descripcion: entity.descripcion,
       partido_id: entity.partido?.id ?? entity.partido_id,
+      jugador_id: entity.jugador?.id ?? entity.jugador_id,
     };
   }
 

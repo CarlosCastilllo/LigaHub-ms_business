@@ -12,7 +12,7 @@ La meta es implementar y probar un CRUD de torneos y fases que demuestre la rela
 
 La clave foránea de la relación uno a muchos es `torneo_id`, almacenada en la tabla `fases`. Por lo tanto, `Fase` es el lado dueño de la relación y lleva `@ManyToOne`; `Torneo` expone el lado inverso con `@OneToMany`.
 
-El torneo también tiene el atributo `deporte_id`, que identifica su deporte. La entidad, el módulo y las reglas de negocio de `Deporte` corresponden a otra implementación y quedan fuera de esta guía. No se debe crear aquí una clase `Deporte` ni aceptar o guardar un objeto `Deporte` anidado. Para crear una restricción de base de datos desde `torneos.deporte_id`, primero se debe confirmar con quien implementa Deporte el nombre real de su tabla y clave primaria.
+El torneo tiene el atributo `deporte_id`, que identifica el deporte asociado. `Deporte` pertenece a este microservicio y `torneos.deporte_id` es una relación muchos-a-uno con `deportes`. En las solicitudes de Torneo se continúa enviando solo el UUID (`deporte_id`), nunca un objeto `Deporte` anidado.
 
 Los atributos de la API y las entidades se mantienen en `snake_case`, igual que en el CRUD de fases existente. Por ello, el atributo entregado como `maxEquipos` se representa como `max_equipos`.
 
@@ -123,7 +123,7 @@ export class Torneo {
 }
 ```
 
-`fases` es una propiedad de navegación de TypeORM, no una columna ni un arreglo que se guarde dentro de `torneos`. `deporte_id` se representa aquí como UUID; esta guía no define una relación TypeORM con `Deporte` porque esa entidad pertenece a otra implementación.
+`fases` y `deporte` son propiedades de navegación de TypeORM. La relación con Deporte utiliza la columna `torneos.deporte_id`; el DTO conserva ese nombre para las solicitudes y respuestas.
 
 ## 4) Crear DTOs, mapper, service, controller y module de `Torneo`
 
@@ -135,9 +135,9 @@ Crea `CreateTorneoDto` para validar los campos que llegan al crear:
 - `descripcion`: texto.
 - `estado`: valor permitido del enum `EstadoTorneo`.
 - `max_equipos`: entero positivo.
-- `deporte_id`: UUID.
+- `deporte_id`: UUID de un deporte existente.
 
-No incluyas `id` (lo genera la base de datos) ni `fases` en el DTO de creación. El usuario envía el identificador de un deporte existente. Si la FK de Deporte ya está configurada, un UUID inexistente debe rechazarse por la base de datos; la comprobación anticipada en el service solo se agrega cuando el módulo/entidad de Deporte esté disponible y coordinado con su responsable.
+No incluyas `id` (lo genera la base de datos) ni `fases` en el DTO de creación. El service verifica que `deporte_id` exista y asigna la relación; la base de datos también conserva una llave foránea.
 
 Crea `UpdateTorneoDto` usando `PartialType(CreateTorneoDto)` y `TorneoResponseDto` con los campos serializados en `snake_case`. El DTO de respuesta puede incluir `fases` solo en una ruta que solicite explícitamente esa relación; no devuelvas relaciones incompletas por defecto.
 
@@ -238,7 +238,7 @@ No es necesario incluir el objeto completo del torneo en cada respuesta de fase.
 Actualiza `FaseMapper.toEntity` para no intentar asignar `torneo_id` como si fuera una relación. Separa el UUID antes de asignar el resto de los atributos:
 
 ```typescript
-toEntity(dto: CreateFaseInput): Fase {
+toEntity(dto: CreateFaseDto): Fase {
   const { tipo, torneo_id: _torneo_id, ...atributos } = dto;
 
   switch (tipo) {
@@ -320,7 +320,7 @@ La migración debe:
 1. Crear `torneos` con `id`, `nombre`, `descripcion`, `estado`, `max_equipos` y `deporte_id`.
 2. Añadir una llave foránea no única desde `fases.torneo_id` hacia `torneos.id`, con la política de borrado que se haya aprobado.
 3. No agregar una llave `UNIQUE` a `fases.torneo_id`: varias fases pueden pertenecer al mismo torneo.
-4. Incluir una llave foránea desde `torneos.deporte_id` solo cuando se haya confirmado la tabla y la columna primaria reales de Deporte y que dicha tabla exista antes de aplicar la migración. No inventes el nombre ni generes aquí la entidad de Deporte.
+4. Crear `deportes` antes de agregar la llave foránea de `torneos.deporte_id`. La migración de Deporte revisa que los torneos existentes apunten a deportes válidos.
 
 Si la tabla `fases` ya contiene datos, verifica antes que cada `torneo_id` tenga un torneo correspondiente. Si hay filas huérfanas, crea o corrige los torneos y sus referencias antes de agregar la llave foránea; de lo contrario, MySQL rechazará la migración.
 
@@ -330,7 +330,7 @@ Revisa el SQL generado: debe crear `torneos` antes de agregar la FK desde `fases
 npm run migration:run
 ```
 
-Si la FK de Deporte depende de otra migración, coordina y aplica las migraciones en el orden acordado con el responsable de esa entidad.
+La migración de Deporte debe ejecutarse después de la creación de `torneos`; no ejecutes migraciones automáticamente durante el desarrollo.
 
 ## 9) Respuestas y consulta de fases de un torneo
 
@@ -352,7 +352,7 @@ El objetivo de estas pruebas es verificar el flujo completo mediante la API: cre
 
 ### 10.1 Crear un torneo
 
-Envía el deporte existente asignado por el responsable del módulo Deporte. No uses un UUID inventado si la llave foránea de Deporte está activa.
+Envía el UUID de un deporte existente. No uses un UUID inventado porque el service y la llave foránea verifican la relación.
 
 `POST http://localhost:3000/torneos`
 
@@ -418,4 +418,4 @@ La prueba principal se considera exitosa solo cuando el torneo se crea primero, 
 4. El service de fases busca el torneo real y asigna la relación; la FK no se simula enviando un objeto anidado ni guardando fases en cascada.
 5. Se comprueba la relación consultando las fases desde el torneo y verificando que cada respuesta contiene el `torneo_id` correcto.
 6. La migración agrega la FK `fases.torneo_id` sin restricción `UNIQUE`; la política de borrado se acuerda y se prueba.
-7. `deporte_id` se conserva en Torneo, pero la entidad, el CRUD y la FK de Deporte se coordinan con su responsable; no se implementa Deporte en esta guía.
+7. `deporte_id` relaciona Torneo con Deporte; el CRUD de Deporte se implementa en su propio módulo.

@@ -4,11 +4,11 @@ import { FaseResponseDto } from '../dto/fase-response.dto';
 import { FaseFinal } from '../entities/fase-final.entity';
 import { FaseGrupos } from '../entities/fase-grupos.entity';
 import { Fase, TipoFase } from '../entities/fase.entity';
-import type { CreateFaseInput } from '../pipes/create-fase-validation.pipe';
+import { CreateFaseDto } from '../dto/create-fase.dto';
 
 @Injectable()
 export class FaseMapper {
-  toEntity(dto: CreateFaseInput): Fase {
+  toEntity(dto: CreateFaseDto): Fase {
     const { tipo, torneo_id: _torneo_id, ...atributos } = dto;
     switch (tipo) {
       case TipoFase.GRUPOS:

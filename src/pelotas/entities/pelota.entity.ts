@@ -1,9 +1,11 @@
 import { Partido } from '../../partidos/entities/partido.entity';
+import { PosicionEspacial } from '../../posiciones-espaciales/entities/posicion-espacial.entity';
 import {
   Column,
   Entity,
   JoinColumn,
   OneToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   RelationId,
 } from 'typeorm';
@@ -46,4 +48,11 @@ export class Pelota {
 
   @RelationId((pelota: Pelota) => pelota.partido)
   partido_id?: string | null;
+
+  @OneToMany(
+    () => PosicionEspacial,
+    (posicion) => posicion.pelota,
+    { cascade: false },
+  )
+  posiciones_espaciales?: PosicionEspacial[];
 }

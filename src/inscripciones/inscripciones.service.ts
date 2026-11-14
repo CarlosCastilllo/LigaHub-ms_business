@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Torneo } from '../torneos/entities/torneo.entity';
+import { Equipo } from '../equipos/entities/equipo.entity';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { InscripcionResponseDto } from './dto/inscripcion-response.dto';
 import { TorneoInscripcionesReportDto } from './dto/torneo-inscripciones-report.dto';
@@ -17,19 +18,22 @@ export class InscripcionesService {
     private readonly inscripcionesRepository: Repository<Inscripcion>,
     @InjectRepository(Torneo)
     private readonly torneosRepository: Repository<Torneo>,
+    @InjectRepository(Equipo)
+    private readonly equiposRepository: Repository<Equipo>,
     private readonly customInscripcionesRepository: InscripcionesRepository,
   ) {}
 
   async create(dto: CreateInscripcionDto): Promise<InscripcionResponseDto> {
     const torneo = await this.findTorneo(dto.torneo_id);
-    const entity = InscripcionMapper.toEntity(dto, torneo);
+    const equipo = await this.findEquipo(dto.equipo_id);
+    const entity = InscripcionMapper.toEntity(dto, torneo, equipo);
     const saved = await this.inscripcionesRepository.save(entity);
     return InscripcionMapper.toResponseDto(saved);
   }
 
   async findAll(): Promise<InscripcionResponseDto[]> {
     const inscripciones = await this.inscripcionesRepository.find({
-      relations: { torneo: true },
+      relations: { torneo: true, equipo: true },
     });
     return InscripcionMapper.toResponseDtoList(inscripciones);
   }
@@ -45,6 +49,9 @@ export class InscripcionesService {
     const inscripcion = await this.findInscripcion(id);
     if (dto.torneo_id !== undefined) {
       inscripcion.torneo = await this.findTorneo(dto.torneo_id);
+    }
+    if (dto.equipo_id !== undefined) {
+      inscripcion.equipo = await this.findEquipo(dto.equipo_id);
     }
     const saved = await this.inscripcionesRepository.save(
       InscripcionMapper.mergeEntity(inscripcion, dto),
@@ -72,7 +79,7 @@ export class InscripcionesService {
   private async findInscripcion(id: string): Promise<Inscripcion> {
     const inscripcion = await this.inscripcionesRepository.findOne({
       where: { id },
-      relations: { torneo: true },
+      relations: { torneo: true, equipo: true },
     });
     if (!inscripcion) {
       throw new NotFoundException(`Inscripcion with id ${id} not found`);
@@ -86,5 +93,13 @@ export class InscripcionesService {
       throw new NotFoundException(`Torneo with id ${id} not found`);
     }
     return torneo;
+  }
+
+  private async findEquipo(id: string): Promise<Equipo> {
+    const equipo = await this.equiposRepository.findOne({ where: { id } });
+    if (!equipo) {
+      throw new NotFoundException(`Equipo with id ${id} not found`);
+    }
+    return equipo;
   }
 }

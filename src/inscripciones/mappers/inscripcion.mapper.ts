@@ -7,11 +7,12 @@ export class InscripcionMapper {
   static toEntity(
     dto: CreateInscripcionDto,
     torneo: Inscripcion['torneo'],
+    equipo: Inscripcion['equipo'],
   ): Inscripcion {
     return Object.assign(new Inscripcion(), {
       fecha_inscripcion: dto.fecha_inscripcion,
       estado: dto.estado,
-      equipo_id: dto.equipo_id,
+      equipo,
       torneo,
     });
   }
@@ -24,7 +25,6 @@ export class InscripcionMapper {
       entity.fecha_inscripcion = dto.fecha_inscripcion;
     }
     if (dto.estado !== undefined) entity.estado = dto.estado;
-    if (dto.equipo_id !== undefined) entity.equipo_id = dto.equipo_id;
     return entity;
   }
 
@@ -33,7 +33,7 @@ export class InscripcionMapper {
       id: entity.id,
       fecha_inscripcion: entity.fecha_inscripcion,
       estado: entity.estado,
-      equipo_id: entity.equipo_id,
+      equipo_id: entity.equipo?.id ?? entity.equipo_id,
       torneo_id: entity.torneo?.id ?? entity.torneo_id,
     };
   }

@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Partido } from '../partidos/entities/partido.entity';
+import { Jugador } from '../jugadores/entities/jugador.entity';
 import { AnotacionesController } from './anotaciones.controller';
 import { AnotacionesService } from './anotaciones.service';
 import { Anotacion } from './entities/anotacion.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Anotacion, Partido])],
+  imports: [TypeOrmModule.forFeature([Anotacion, Partido, Jugador])],
   controllers: [AnotacionesController],
   providers: [AnotacionesService],
   exports: [AnotacionesService],

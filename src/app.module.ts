@@ -16,6 +16,15 @@ import { MetodosPagoModule } from './metodos-pago/metodos-pago.module';
 import { MetodosPagoAficionadoModule } from './metodos-pago-aficionado/metodos-pago-aficionado.module';
 import { PartidosModule } from './partidos/partidos.module';
 import { PelotasModule } from './pelotas/pelotas.module';
+import { JugadoresModule } from './jugadores/jugadores.module';
+import { PosicionesEspacialesModule } from './posiciones-espaciales/posiciones-espaciales.module';
+import { EquiposModule } from './equipos/equipos.module';
+import { EquipoJugadorModule } from './equipo-jugador/equipo-jugador.module';
+import { AficionadoEquipoModule } from './aficionado-equipo/aficionado-equipo.module';
+import { HabilidadesModule } from './habilidades/habilidades.module';
+import { HabilidadJugadorModule } from './habilidad-jugador/habilidad-jugador.module';
+import { DeportesModule } from './deportes/deportes.module';
+import { EquiposDeportesModule } from './equipos-deportes/equipos-deportes.module';
 import { TorneosModule } from './torneos/torneos.module';
 
 @Module({
@@ -49,6 +58,15 @@ import { TorneosModule } from './torneos/torneos.module';
     MetodosPagoAficionadoModule,
     AnotacionesModule,
     PelotasModule,
+    JugadoresModule,
+    PosicionesEspacialesModule,
+    EquiposModule,
+    EquipoJugadorModule,
+    AficionadoEquipoModule,
+    HabilidadesModule,
+    HabilidadJugadorModule,
+    DeportesModule,
+    EquiposDeportesModule,
   ],
   providers: [
     {
