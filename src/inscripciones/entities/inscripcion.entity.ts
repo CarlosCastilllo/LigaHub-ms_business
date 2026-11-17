@@ -45,7 +45,7 @@ export class Inscripcion {
   @ManyToOne(() => Torneo, (torneo) => torneo.inscripciones, {
     cascade: false,
     nullable: false,
-    onDelete: 'CASCADE',
+    onDelete: 'NO ACTION',
   })
   @JoinColumn({ name: 'torneo_id' })
   torneo!: Relation<Torneo>;

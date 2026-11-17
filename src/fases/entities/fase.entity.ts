@@ -42,7 +42,7 @@ export abstract class Fase {
   @ManyToOne(() => Torneo, (torneo) => torneo.fases, {
     cascade: false,
     nullable: false,
-    onDelete: 'CASCADE',
+    onDelete: 'NO ACTION',
   })
   @JoinColumn({ name: 'torneo_id' })
   torneo!: Relation<Torneo>;

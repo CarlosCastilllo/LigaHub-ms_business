@@ -79,7 +79,7 @@ export class EquiposService {
       equipo.equipos_deportes?.length
     ) {
       throw new ConflictException(
-        `Equipo #${id} has jugadores, inscripciones, partidos, aficionado preferences or deportes; delete or reassign them first`,
+        `Equipo #${id} has jugadores, inscripciones, partidos, aficionado preferences or deportes; delete or reassign them first, or deactivate it instead`,
       );
     }
     await this.equiposRepository.remove(equipo);

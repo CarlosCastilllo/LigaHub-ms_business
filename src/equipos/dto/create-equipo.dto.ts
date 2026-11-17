@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -15,4 +16,8 @@ export class CreateEquipoDto {
   @IsOptional()
   @IsUUID()
   fase_grupos_id?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean;
 }

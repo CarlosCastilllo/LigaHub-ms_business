@@ -36,8 +36,9 @@ export class EquiposDeportesService {
     return EquipoDeporteMapper.toResponseDto(saved);
   }
 
-  async findAll(): Promise<EquipoDeporteResponseDto[]> {
+  async findAll(equipoId?: string): Promise<EquipoDeporteResponseDto[]> {
     const relaciones = await this.relacionesRepository.find({
+      where: equipoId ? { equipo: { id: equipoId } } : undefined,
       relations: { equipo: true, deporte: true },
     });
     return EquipoDeporteMapper.toResponseDtoList(relaciones);

@@ -21,6 +21,9 @@ export class Equipo {
   @Column({ type: 'uuid', nullable: true })
   fase_grupos_id?: string | null;
 
+  @Column({ type: 'boolean', default: true })
+  activo!: boolean;
+
   @OneToMany(
     () => EquipoJugador,
     (equipoJugador) => equipoJugador.equipo,

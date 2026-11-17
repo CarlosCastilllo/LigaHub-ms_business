@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { ValidationPipe } from '@nestjs/common';
+import { ConflictException, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -121,5 +121,52 @@ describe('Tournament and phase CRUD routes', () => {
       .send({ numero_orden: 2 })
       .expect(200);
     await request(server).delete(`/fases/${faseId}`).expect(200);
+  });
+
+  it('validates tournament payloads and propagates the delete conflict', async () => {
+    const server = app.getHttpServer();
+    const valido = {
+      nombre: torneo.nombre,
+      descripcion: torneo.descripcion,
+      estado: torneo.estado,
+      max_equipos: torneo.max_equipos,
+      deporte_id: torneo.deporte_id,
+    };
+
+    await request(server)
+      .post('/torneos')
+      .send({ descripcion: torneo.descripcion })
+      .expect(400);
+    await request(server)
+      .post('/torneos')
+      .send({ ...valido, nombre: 'x'.repeat(256) })
+      .expect(400);
+    await request(server)
+      .post('/torneos')
+      .send({ ...valido, deporte_id: 'no-es-uuid' })
+      .expect(400);
+    await request(server)
+      .post('/torneos')
+      .send({ ...valido, activo: 'no' })
+      .expect(400);
+    await request(server)
+      .patch(`/torneos/${torneoId}`)
+      .send({ max_equipos: 0 })
+      .expect(400);
+    await request(server).get('/torneos/no-es-uuid').expect(400);
+
+    torneosService.update.mockClear();
+    await request(server)
+      .patch(`/torneos/${torneoId}`)
+      .send({ activo: false })
+      .expect(200);
+    expect(torneosService.update).toHaveBeenCalledWith(torneoId, {
+      activo: false,
+    });
+
+    torneosService.remove.mockRejectedValueOnce(
+      new ConflictException('Torneo has fases'),
+    );
+    await request(server).delete(`/torneos/${torneoId}`).expect(409);
   });
 });

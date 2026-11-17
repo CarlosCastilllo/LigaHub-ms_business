@@ -8,7 +8,9 @@ import { Torneo } from '../entities/torneo.entity';
 export class TorneoMapper {
   toEntity(dto: CreateTorneoDto): Torneo {
     const { deporte_id: _deporte_id, ...attributes } = dto;
-    return Object.assign(new Torneo(), attributes);
+    return Object.assign(new Torneo(), attributes, {
+      activo: dto.activo ?? true,
+    });
   }
 
   mergeEntity(entity: Torneo, dto: UpdateTorneoDto): Torneo {
@@ -16,6 +18,7 @@ export class TorneoMapper {
     if (dto.descripcion !== undefined) entity.descripcion = dto.descripcion;
     if (dto.estado !== undefined) entity.estado = dto.estado;
     if (dto.max_equipos !== undefined) entity.max_equipos = dto.max_equipos;
+    if (dto.activo !== undefined) entity.activo = dto.activo;
     return entity;
   }
 
@@ -26,6 +29,7 @@ export class TorneoMapper {
       descripcion: entity.descripcion,
       estado: entity.estado,
       max_equipos: entity.max_equipos,
+      activo: entity.activo,
       deporte_id: entity.deporte?.id ?? entity.deporte_id,
     };
   }

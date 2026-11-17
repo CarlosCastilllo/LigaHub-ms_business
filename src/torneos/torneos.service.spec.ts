@@ -1,9 +1,11 @@
 import { jest } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import { EscenarioTorneo } from '../escenarios-torneo/entities/escenario-torneo.entity';
 import { Fase } from '../fases/entities/fase.entity';
 import { FaseMapper } from '../fases/mappers/fase.mapper';
 import { Deporte } from '../deportes/entities/deporte.entity';
+import { Inscripcion } from '../inscripciones/entities/inscripcion.entity';
 import { Torneo } from './entities/torneo.entity';
 import { EstadoTorneo } from './entities/torneo.entity';
 import { CreateTorneoDto } from './dto/create-torneo.dto';
@@ -46,6 +48,7 @@ describe('TorneosService', () => {
       descripcion: 'Temporada de apertura',
       estado: EstadoTorneo.PENDIENTE,
       max_equipos: 16,
+      activo: true,
       deporte_id: '550e8400-e29b-41d4-a716-446655440010',
     });
   }
@@ -67,9 +70,12 @@ describe('TorneosService', () => {
       descripcion: saved.descripcion,
       estado: saved.estado,
       max_equipos: saved.max_equipos,
+      activo: true,
       deporte_id: saved.deporte_id,
     });
-
+    expect(torneosRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ activo: true }),
+    );
   });
 
   it('rejects a tournament with an unknown sport', async () => {
@@ -129,5 +135,74 @@ describe('TorneosService', () => {
     expect(updated.nombre).toBe('Torneo Clausura');
     expect(torneosRepository.remove).toHaveBeenCalledWith(existing);
     expect(removed.message).toContain(existing.id);
+  });
+
+  it('deactivates a tournament without touching the other fields', async () => {
+    const existing = torneo();
+    torneosRepository.findOne.mockResolvedValue(existing);
+    torneosRepository.save.mockImplementation(async (entity) => entity as Torneo);
+
+    const updated = await service.update(existing.id, { activo: false });
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        activo: false,
+        nombre: 'Torneo Apertura',
+        estado: EstadoTorneo.PENDIENTE,
+        max_equipos: 16,
+      }),
+    );
+  });
+
+  it('loads the tournament dependencies before deleting it', async () => {
+    const existing = torneo();
+    torneosRepository.findOne.mockResolvedValue(existing);
+
+    await service.remove(existing.id);
+
+    expect(torneosRepository.findOne).toHaveBeenCalledWith({
+      where: { id: existing.id },
+      relations: { fases: true, inscripciones: true, escenarios_torneo: true },
+    });
+  });
+
+  it.each([
+    ['fases', { fases: [new Fase()] }],
+    ['inscripciones', { inscripciones: [new Inscripcion()] }],
+    ['escenarios', { escenarios_torneo: [new EscenarioTorneo()] }],
+  ])(
+    'refuses to delete a tournament that has %s',
+    async (_dependencia, relaciones) => {
+      torneosRepository.findOne.mockResolvedValue(
+        Object.assign(torneo(), relaciones),
+      );
+
+      await expect(service.remove(torneo().id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(torneosRepository.remove).not.toHaveBeenCalled();
+    },
+  );
+
+  it('deletes a tournament whose dependency lists are empty', async () => {
+    const existing = Object.assign(torneo(), {
+      fases: [],
+      inscripciones: [],
+      escenarios_torneo: [],
+    });
+    torneosRepository.findOne.mockResolvedValue(existing);
+
+    await service.remove(existing.id);
+
+    expect(torneosRepository.remove).toHaveBeenCalledWith(existing);
+  });
+
+  it('returns 404 when deleting an unknown tournament', async () => {
+    torneosRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.remove(torneo().id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(torneosRepository.remove).not.toHaveBeenCalled();
   });
 });

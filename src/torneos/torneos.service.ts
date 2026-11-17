@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Deporte } from '../deportes/entities/deporte.entity';
@@ -63,7 +67,22 @@ export class TorneosService {
   }
 
   async remove(id: string): Promise<{ message: string }> {
-    const torneo = await this.findTorneo(id);
+    const torneo = await this.torneosRepository.findOne({
+      where: { id },
+      relations: { fases: true, inscripciones: true, escenarios_torneo: true },
+    });
+    if (!torneo) {
+      throw new NotFoundException(`Torneo with id ${id} not found`);
+    }
+    if (
+      torneo.fases?.length ||
+      torneo.inscripciones?.length ||
+      torneo.escenarios_torneo?.length
+    ) {
+      throw new ConflictException(
+        `Torneo #${id} has fases, inscripciones or escenarios; delete them first or deactivate it instead`,
+      );
+    }
     await this.torneosRepository.remove(torneo);
     return { message: `Torneo #${id} deleted successfully` };
   }

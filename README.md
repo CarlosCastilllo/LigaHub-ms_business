@@ -76,6 +76,8 @@ Migraciones incluidas (`src/migrations/`):
 | `CreateEquiposAndEquipoJugador` | Tablas `equipos`, `equipo_jugador` y `aficionados_equipos`, más sus relaciones con fases, aficionados, inscripciones, partidos y jugadores. |
 | `CreateHabilidadesAndHabilidadJugador` | Tabla `habilidades` y asociación N:N `habilidad-jugador` entre habilidades y jugadores. |
 | `CreateDeportesAndEquiposDeportes` | Tabla `deportes`, jerarquía recursiva, FK desde torneos y asociación N:N `equipos-deportes`. |
+| `RestrictTorneoDeletionAndAddActivo` | Columna `torneos.activo` y FKs de fases, inscripciones y escenarios de torneo sin borrado en cascada. |
+| `AddActivoToEquipos` | Columna `equipos.activo` para desactivar equipos. |
 
 La migración `CreateJugadoresAndPosicionesEspaciales` requiere que no existan anotaciones previas: cada anotación debe tener un jugador responsable y no es posible inferirlo automáticamente. Si ya hay datos, asígnales jugadores antes de aplicar esta migración.
 La migración `CreateEquiposAndEquipoJugador` requiere que no haya inscripciones ni partidos existentes, porque sus `equipo_id` actuales no se pueden vincular de forma segura a equipos que aún no existen.
@@ -115,7 +117,7 @@ Jugador 1 ──── N PosicionEspacial ──── N 1 Pelota
 Habilidad 1 ──── N HabilidadJugador N ──── 1 Jugador
 ```
 
-Al eliminar un torneo se eliminan en cascada sus fases, inscripciones y asignaciones de escenario. Todos los `id` son UUID generados por la base de datos y las fechas se envían como `YYYY-MM-DD`.
+Un torneo con fases, inscripciones o asignaciones de escenario no se puede eliminar (409); en ese caso se desactiva con `activo: false`. Todos los `id` son UUID generados por la base de datos y las fechas se envían como `YYYY-MM-DD`.
 
 Cada `PosicionEspacial` registra `x`, `y` y `tiempo_segundos`, y pertenece exactamente a un jugador o a una pelota. Cada anotación requiere el jugador responsable. Los jugadores con anotaciones o posiciones no se pueden eliminar hasta borrar o reasignar esos registros.
 `EquipoJugador` es la entidad intermedia del historial jugador-equipo: cada registro contiene las fechas de inicio y fin (esta última puede ser nula si la relación sigue activa). Los equipos con historial, inscripciones o partidos no se pueden eliminar.
@@ -127,6 +129,9 @@ Cada `PosicionEspacial` registra `x`, `y` y `tiempo_segundos`, y pertenece exact
 | Campo | Tipo | Reglas |
 |---|---|---|
 | `nombre` | texto | Obligatorio, máx. 150. |
+| `activo` | booleano | Opcional, por defecto `true`; `false` desactiva el equipo. |
+
+Un equipo con jugadores, inscripciones, partidos, aficionados o deportes asociados no se puede eliminar (409); en ese caso se desactiva con `activo: false`.
 
 ### Historial de equipos por jugador (`equipo_jugador`)
 
@@ -180,6 +185,7 @@ mientras tenga asociaciones; primero deben eliminarse las filas intermedias.
 | `estado` | enum | `PENDIENTE` · `EN_CURSO` · `FINALIZADO`. |
 | `max_equipos` | entero | ≥ 1. |
 | `deporte_id` | UUID | Deporte existente (FK a `deportes`). |
+| `activo` | booleano | Opcional, por defecto `true`; `false` desactiva el torneo. |
 
 ### Deporte (`deportes`)
 
@@ -237,8 +243,8 @@ Todas las rutas exigen el header `Authorization: Bearer <token>` (ver [Seguridad
 | `GET` | `/torneos` | Lista los torneos. |
 | `GET` | `/torneos/:id` | Obtiene un torneo. |
 | `GET` | `/torneos/:id/fases` | Lista las fases del torneo. |
-| `PATCH` | `/torneos/:id` | Actualiza un torneo. |
-| `DELETE` | `/torneos/:id` | Elimina el torneo y, en cascada, sus fases, inscripciones y escenarios. |
+| `PATCH` | `/torneos/:id` | Actualiza un torneo; con `{ "activo": false }` lo desactiva. |
+| `DELETE` | `/torneos/:id` | Elimina el torneo si no tiene fases, inscripciones ni escenarios; si los tiene responde 409. |
 
 `deporte_id` debe identificar un deporte creado previamente en `/deportes`.
 
@@ -347,7 +353,7 @@ pueden eliminar hasta borrar sus asociaciones.
 |---|---|---|
 | `POST`, `GET` | `/deportes` | Crear y listar deportes. |
 | `GET`, `PATCH`, `DELETE` | `/deportes/:id` | Consultar, actualizar o eliminar un deporte. |
-| `POST`, `GET` | `/equipos-deportes` | Crear y listar asociaciones equipo-deporte. |
+| `POST`, `GET` | `/equipos-deportes` | Crear y listar asociaciones equipo-deporte; `?equipo_id=` filtra las de un equipo. |
 | `GET`, `PATCH`, `DELETE` | `/equipos-deportes/:id` | Consultar, actualizar o eliminar una asociación. |
 
 Cada deporte requiere `nombre` y `descripcion`; `deporte_padre_id` es opcional

@@ -36,6 +36,9 @@ export class Torneo {
   @Column({ type: 'int' })
   max_equipos!: number;
 
+  @Column({ type: 'boolean', default: true })
+  activo!: boolean;
+
   @ManyToOne(() => Deporte, (deporte) => deporte.torneos, {
     cascade: false,
     nullable: false,

@@ -16,7 +16,11 @@ describe('EquiposService', () => {
   const faseGruposId = '550e8400-e29b-41d4-a716-446655440230';
 
   function equipo(): Equipo {
-    return Object.assign(new Equipo(), { id: equipoId, nombre: 'Tigres' });
+    return Object.assign(new Equipo(), {
+      id: equipoId,
+      nombre: 'Tigres',
+      activo: true,
+    });
   }
 
   beforeEach(() => {
@@ -39,6 +43,7 @@ describe('EquiposService', () => {
       id: undefined,
       nombre: 'Tigres',
       fase_grupos_id: null,
+      activo: true,
     });
   });
 
@@ -51,6 +56,7 @@ describe('EquiposService', () => {
       id: equipoId,
       nombre: 'Leones',
       fase_grupos_id: null,
+      activo: true,
     });
   });
 
@@ -64,6 +70,7 @@ describe('EquiposService', () => {
       id: undefined,
       nombre: 'Tigres',
       fase_grupos_id: faseGruposId,
+      activo: true,
     });
   });
 
@@ -81,8 +88,10 @@ describe('EquiposService', () => {
       Object.assign(equipo(), { partidos_locales: [{}] }),
     );
 
-    await expect(service.remove(equipoId)).rejects.toBeInstanceOf(
-      ConflictException,
+    await expect(service.remove(equipoId)).rejects.toThrow(
+      new ConflictException(
+        `Equipo #${equipoId} has jugadores, inscripciones, partidos, aficionado preferences or deportes; delete or reassign them first, or deactivate it instead`,
+      ),
     );
     expect(repository.remove).not.toHaveBeenCalled();
   });
@@ -113,5 +122,25 @@ describe('EquiposService', () => {
     await expect(service.findOne(equipoId)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('deactivates a team without touching its other fields', async () => {
+    repository.findOne.mockResolvedValue(
+      Object.assign(equipo(), { fase_grupos_id: faseGruposId }),
+    );
+
+    await expect(service.update(equipoId, { activo: false })).resolves.toEqual({
+      id: equipoId,
+      nombre: 'Tigres',
+      fase_grupos_id: faseGruposId,
+      activo: false,
+    });
+    expect(fasesRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('can register a team as inactive', async () => {
+    await expect(
+      service.create({ nombre: 'Tigres', activo: false }),
+    ).resolves.toEqual(expect.objectContaining({ activo: false }));
   });
 });

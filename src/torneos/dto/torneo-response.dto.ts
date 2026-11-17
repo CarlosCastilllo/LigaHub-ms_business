@@ -6,5 +6,6 @@ export class TorneoResponseDto {
   descripcion!: string;
   estado!: EstadoTorneo;
   max_equipos!: number;
+  activo!: boolean;
   deporte_id!: string;
 }

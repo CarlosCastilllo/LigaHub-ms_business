@@ -46,7 +46,7 @@ export class EscenarioTorneo {
   @ManyToOne(() => Torneo, (torneo) => torneo.escenarios_torneo, {
     cascade: false,
     nullable: false,
-    onDelete: 'CASCADE',
+    onDelete: 'NO ACTION',
   })
   @JoinColumn({ name: 'torneo_id' })
   torneo!: Relation<Torneo>;

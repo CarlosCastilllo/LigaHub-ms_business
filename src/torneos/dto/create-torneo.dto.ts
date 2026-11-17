@@ -1,9 +1,12 @@
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { EstadoTorneo } from '../entities/torneo.entity';
@@ -11,6 +14,7 @@ import { EstadoTorneo } from '../entities/torneo.entity';
 export class CreateTorneoDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   nombre!: string;
 
   @IsString()
@@ -26,4 +30,8 @@ export class CreateTorneoDto {
 
   @IsUUID()
   deporte_id!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean;
 }

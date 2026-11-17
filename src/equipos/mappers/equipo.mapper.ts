@@ -8,6 +8,7 @@ export class EquipoMapper {
     return Object.assign(new Equipo(), {
       nombre: dto.nombre,
       fase_grupos_id: dto.fase_grupos_id ?? null,
+      activo: dto.activo ?? true,
     });
   }
 
@@ -16,6 +17,7 @@ export class EquipoMapper {
     if (dto.fase_grupos_id !== undefined) {
       entity.fase_grupos_id = dto.fase_grupos_id;
     }
+    if (dto.activo !== undefined) entity.activo = dto.activo;
     return entity;
   }
 
@@ -24,6 +26,7 @@ export class EquipoMapper {
       id: entity.id,
       nombre: entity.nombre,
       fase_grupos_id: entity.fase_grupos_id ?? null,
+      activo: entity.activo,
     };
   }
 

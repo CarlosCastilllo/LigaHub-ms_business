@@ -95,4 +95,27 @@ describe('EquiposDeportesService', () => {
       message: `EquipoDeporte #${relacionId} deleted successfully`,
     });
   });
+
+  it('lists only the sports of the requested team', async () => {
+    relacionesRepository.find.mockResolvedValue([relacion()]);
+
+    await expect(service.findAll(equipoId)).resolves.toEqual([
+      { id: relacionId, equipo_id: equipoId, deporte_id: deporteId },
+    ]);
+    expect(relacionesRepository.find).toHaveBeenCalledWith({
+      where: { equipo: { id: equipoId } },
+      relations: { equipo: true, deporte: true },
+    });
+  });
+
+  it('lists every association when no team is given', async () => {
+    relacionesRepository.find.mockResolvedValue([]);
+
+    await service.findAll();
+
+    expect(relacionesRepository.find).toHaveBeenCalledWith({
+      where: undefined,
+      relations: { equipo: true, deporte: true },
+    });
+  });
 });
