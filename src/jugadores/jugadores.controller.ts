@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -17,8 +18,11 @@ export class JugadoresController {
   constructor(private readonly jugadoresService: JugadoresService) {}
 
   @Post()
-  create(@Body() dto: CreateJugadorDto) {
-    return this.jugadoresService.create(dto);
+  create(
+    @Body() dto: CreateJugadorDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.jugadoresService.create(dto, authorization);
   }
 
   @Get()

@@ -112,7 +112,16 @@ describe('Team routes', () => {
     await request(server)
       .get(`/equipos-deportes?equipo_id=${equipoId}`)
       .expect(200);
-    expect(equiposDeportesService.findAll).toHaveBeenCalledWith(equipoId);
+    expect(equiposDeportesService.findAll).toHaveBeenCalledWith({
+      equipo_id: equipoId,
+    });
     await request(server).get('/equipos-deportes?equipo_id=abc').expect(400);
+    await request(server)
+      .get(`/equipos-deportes?deporte_id=${equipoId}`)
+      .expect(200);
+    expect(equiposDeportesService.findAll).toHaveBeenLastCalledWith({
+      deporte_id: equipoId,
+    });
+    await request(server).get('/equipos-deportes?deporte_id=abc').expect(400);
   });
 });

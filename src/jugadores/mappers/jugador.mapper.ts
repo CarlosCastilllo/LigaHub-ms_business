@@ -6,30 +6,29 @@ import { Jugador } from '../entities/jugador.entity';
 export class JugadorMapper {
   static toEntity(dto: CreateJugadorDto): Jugador {
     return Object.assign(new Jugador(), {
-      nombres: dto.nombres,
-      apellidos: dto.apellidos,
+      user_id: dto.user_id,
       fecha_nacimiento: dto.fecha_nacimiento,
       nacionalidad: dto.nacionalidad,
+      activo: dto.activo ?? true,
     });
   }
 
   static mergeEntity(entity: Jugador, dto: UpdateJugadorDto): Jugador {
-    if (dto.nombres !== undefined) entity.nombres = dto.nombres;
-    if (dto.apellidos !== undefined) entity.apellidos = dto.apellidos;
     if (dto.fecha_nacimiento !== undefined) {
       entity.fecha_nacimiento = dto.fecha_nacimiento;
     }
     if (dto.nacionalidad !== undefined) entity.nacionalidad = dto.nacionalidad;
+    if (dto.activo !== undefined) entity.activo = dto.activo;
     return entity;
   }
 
   static toResponseDto(entity: Jugador): JugadorResponseDto {
     return {
       id: entity.id,
-      nombres: entity.nombres,
-      apellidos: entity.apellidos,
+      user_id: entity.user_id,
       fecha_nacimiento: entity.fecha_nacimiento,
       nacionalidad: entity.nacionalidad,
+      activo: entity.activo,
     };
   }
 

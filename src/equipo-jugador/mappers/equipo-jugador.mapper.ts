@@ -12,6 +12,7 @@ export class EquipoJugadorMapper {
     return Object.assign(new EquipoJugador(), {
       fecha_inicio: dto.fecha_inicio,
       fecha_fin: dto.fecha_fin ?? null,
+      activo: true,
       equipo,
       jugador,
     });
@@ -28,6 +29,12 @@ export class EquipoJugadorMapper {
     return entity;
   }
 
+  static retirar(entity: EquipoJugador, fechaFin: string): EquipoJugador {
+    entity.activo = false;
+    entity.fecha_fin = fechaFin;
+    return entity;
+  }
+
   static toResponseDto(
     entity: EquipoJugador,
   ): EquipoJugadorResponseDto {
@@ -35,6 +42,7 @@ export class EquipoJugadorMapper {
       id: entity.id,
       fecha_inicio: entity.fecha_inicio,
       fecha_fin: entity.fecha_fin ?? null,
+      activo: entity.activo,
       equipo_id: entity.equipo?.id ?? entity.equipo_id,
       jugador_id: entity.jugador?.id ?? entity.jugador_id,
     };

@@ -21,6 +21,9 @@ export class EquipoJugador {
   @Column({ type: 'date', nullable: true })
   fecha_fin?: string | null;
 
+  @Column({ type: 'boolean', default: true })
+  activo!: boolean;
+
   @ManyToOne(() => Equipo, (equipo) => equipo.jugadores_equipo, {
     cascade: false,
     nullable: false,

@@ -5,13 +5,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isDuplicateEntry } from '../common/database/is-duplicate-entry';
 import { Deporte } from '../deportes/entities/deporte.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
 import { CreateEquipoDeporteDto } from './dto/create-equipo-deporte.dto';
 import { EquipoDeporteResponseDto } from './dto/equipo-deporte-response.dto';
+import { FindEquiposDeportesQueryDto } from './dto/find-equipos-deportes-query.dto';
 import { UpdateEquipoDeporteDto } from './dto/update-equipo-deporte.dto';
 import { EquipoDeporte } from './entities/equipo-deporte.entity';
 import { EquipoDeporteMapper } from './mappers/equipo-deporte.mapper';
+
+const DUPLICATE_ASSOCIATION_MESSAGE = 'This deporte is already assigned to equipo';
 
 @Injectable()
 export class EquiposDeportesService {
@@ -30,15 +34,33 @@ export class EquiposDeportesService {
     const equipo = await this.findEquipo(dto.equipo_id);
     const deporte = await this.findDeporte(dto.deporte_id);
     await this.assertAssociationDoesNotExist(dto.equipo_id, dto.deporte_id);
-    const saved = await this.relacionesRepository.save(
-      EquipoDeporteMapper.toEntity(equipo, deporte),
-    );
-    return EquipoDeporteMapper.toResponseDto(saved);
+    try {
+      const saved = await this.relacionesRepository.save(
+        EquipoDeporteMapper.toEntity(equipo, deporte),
+      );
+      return EquipoDeporteMapper.toResponseDto(saved);
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw new ConflictException(DUPLICATE_ASSOCIATION_MESSAGE);
+      }
+      throw error;
+    }
   }
 
-  async findAll(equipoId?: string): Promise<EquipoDeporteResponseDto[]> {
+  async findAll(
+    filtros: FindEquiposDeportesQueryDto = {},
+  ): Promise<EquipoDeporteResponseDto[]> {
+    const { equipo_id, deporte_id } = filtros;
+    if (equipo_id) await this.findEquipo(equipo_id);
+    if (deporte_id) await this.findDeporte(deporte_id);
     const relaciones = await this.relacionesRepository.find({
-      where: equipoId ? { equipo: { id: equipoId } } : undefined,
+      where:
+        equipo_id || deporte_id
+          ? {
+              ...(equipo_id && { equipo: { id: equipo_id } }),
+              ...(deporte_id && { deporte: { id: deporte_id } }),
+            }
+          : undefined,
       relations: { equipo: true, deporte: true },
     });
     return EquipoDeporteMapper.toResponseDtoList(relaciones);
@@ -113,7 +135,7 @@ export class EquiposDeportesService {
       },
     });
     if (existing && existing.id !== currentId) {
-      throw new ConflictException('This deporte is already assigned to equipo');
+      throw new ConflictException(DUPLICATE_ASSOCIATION_MESSAGE);
     }
   }
 }

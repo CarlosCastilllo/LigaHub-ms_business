@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { Deporte } from '../deportes/entities/deporte.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
 import { EquipoDeporte } from './entities/equipo-deporte.entity';
@@ -99,7 +99,7 @@ describe('EquiposDeportesService', () => {
   it('lists only the sports of the requested team', async () => {
     relacionesRepository.find.mockResolvedValue([relacion()]);
 
-    await expect(service.findAll(equipoId)).resolves.toEqual([
+    await expect(service.findAll({ equipo_id: equipoId })).resolves.toEqual([
       { id: relacionId, equipo_id: equipoId, deporte_id: deporteId },
     ]);
     expect(relacionesRepository.find).toHaveBeenCalledWith({
@@ -117,5 +117,63 @@ describe('EquiposDeportesService', () => {
       where: undefined,
       relations: { equipo: true, deporte: true },
     });
+  });
+
+  it('lists only the teams of the requested sport', async () => {
+    relacionesRepository.find.mockResolvedValue([relacion()]);
+
+    await expect(service.findAll({ deporte_id: deporteId })).resolves.toEqual([
+      { id: relacionId, equipo_id: equipoId, deporte_id: deporteId },
+    ]);
+    expect(deportesRepository.findOne).toHaveBeenCalledWith({
+      where: { id: deporteId },
+    });
+    expect(relacionesRepository.find).toHaveBeenCalledWith({
+      where: { deporte: { id: deporteId } },
+      relations: { equipo: true, deporte: true },
+    });
+  });
+
+  it('returns 404 when filtering by a missing team', async () => {
+    equiposRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.findAll({ equipo_id: equipoId })).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(relacionesRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when filtering by a missing sport', async () => {
+    deportesRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.findAll({ deporte_id: deporteId })).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(relacionesRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('turns a concurrent duplicate insert into a 409', async () => {
+    relacionesRepository.findOne.mockResolvedValue(null);
+    relacionesRepository.save.mockRejectedValue(
+      new QueryFailedError('INSERT', [], { code: 'ER_DUP_ENTRY' } as never),
+    );
+
+    await expect(
+      service.create({ equipo_id: equipoId, deporte_id: deporteId }),
+    ).rejects.toThrow(
+      new ConflictException('This deporte is already assigned to equipo'),
+    );
+  });
+
+  it('keeps other persistence errors untouched', async () => {
+    relacionesRepository.findOne.mockResolvedValue(null);
+    const failure = new QueryFailedError('INSERT', [], {
+      code: 'ER_LOCK_DEADLOCK',
+    } as never);
+    relacionesRepository.save.mockRejectedValue(failure);
+
+    await expect(
+      service.create({ equipo_id: equipoId, deporte_id: deporteId }),
+    ).rejects.toBe(failure);
   });
 });

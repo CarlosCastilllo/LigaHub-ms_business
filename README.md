@@ -78,6 +78,8 @@ Migraciones incluidas (`src/migrations/`):
 | `CreateDeportesAndEquiposDeportes` | Tabla `deportes`, jerarquía recursiva, FK desde torneos y asociación N:N `equipos-deportes`. |
 | `RestrictTorneoDeletionAndAddActivo` | Columna `torneos.activo` y FKs de fases, inscripciones y escenarios de torneo sin borrado en cascada. |
 | `AddActivoToEquipos` | Columna `equipos.activo` para desactivar equipos. |
+| `LinkJugadoresToUsers` | Jugador pasa a referenciar su usuario de ms-security (`user_id` único), se quitan `nombres`/`apellidos` y se agrega `activo`. Se detiene si ya hay jugadores. |
+| `AddActivoToEquipoJugador` | Columna `equipo_jugador.activo` (contrato vigente o retirado), columna generada `vigente` e índice único `(jugador_id, vigente)`: un solo contrato vigente por jugador. Se detiene si algún jugador ya tiene varias filas. |
 
 La migración `CreateJugadoresAndPosicionesEspaciales` requiere que no existan anotaciones previas: cada anotación debe tener un jugador responsable y no es posible inferirlo automáticamente. Si ya hay datos, asígnales jugadores antes de aplicar esta migración.
 La migración `CreateEquiposAndEquipoJugador` requiere que no haya inscripciones ni partidos existentes, porque sus `equipo_id` actuales no se pueden vincular de forma segura a equipos que aún no existen.
@@ -141,6 +143,9 @@ Un equipo con jugadores, inscripciones, partidos, aficionados o deportes asociad
 | `jugador_id` | UUID | Jugador existente. |
 | `fecha_inicio` | fecha | Obligatoria, `YYYY-MM-DD`. |
 | `fecha_fin` | fecha | Opcional; si se informa debe ser igual o posterior a `fecha_inicio`. |
+| `activo` | booleano | Solo lectura. `true` al asignar (contrato vigente); `false` tras retirar al jugador. |
+
+El equipo y el jugador deben existir (404) y estar activos (400). Un jugador solo puede tener un contrato vigente a la vez: asignarlo de nuevo al mismo equipo o a otro mientras siga vigente responde 409 (también lo garantiza el índice único de la BD ante peticiones simultáneas). Retirar un jugador no borra el registro: marca `activo: false` y guarda la fecha de salida en `fecha_fin`, de modo que queda como historial de traspasos y el jugador puede asignarse a otro equipo. El equipo y el jugador de un contrato no se pueden cambiar después de creado.
 
 ### Preferencias de equipos (`aficionados_equipos`)
 
@@ -150,10 +155,12 @@ Asociación N:N sin campos adicionales entre un aficionado y sus equipos preferi
 
 | Campo | Tipo | Reglas |
 |---|---|---|
-| `nombres` | texto | Obligatorio, máx. 100. |
-| `apellidos` | texto | Obligatorio, máx. 100. |
-| `fecha_nacimiento` | fecha | Obligatoria, formato `YYYY-MM-DD`. |
+| `user_id` | entero | Obligatorio e inmutable. Id del usuario de ms-security (relación 1:1); único: un usuario solo puede ser un jugador (409). Business comprueba que exista consultando `GET /api/users/{id}` de ms-security con el token de quien llama (404 si no existe, 503 si ms-security no responde). |
+| `fecha_nacimiento` | fecha | Obligatoria, formato `YYYY-MM-DD`, no puede ser futura. |
 | `nacionalidad` | texto | Obligatoria, máx. 100. |
+| `activo` | booleano | Opcional, por defecto `true`; `false` desactiva el jugador. |
+
+El nombre y el email del jugador son los de su usuario en ms-security. Un jugador con anotaciones, posiciones, historial de equipos o habilidades no se puede eliminar (409); en ese caso se desactiva con `activo: false`.
 
 ### Habilidad (`habilidades`)
 
@@ -320,7 +327,7 @@ Para registrar la posición del balón, se usa `pelota_id` en lugar de `jugador_
 
 ### Equipos e historial de jugadores
 
-`/equipos` y `/equipo-jugador` ofrecen `POST`, `GET` (colección y `/:id`), `PATCH /:id` y `DELETE /:id`. Para registrar una vinculación de jugador a equipo:
+`/equipos` y `/equipo-jugador` ofrecen `POST`, `GET` (colección y `/:id`), `PATCH /:id` y `DELETE /:id`. `GET /equipo-jugador` acepta los filtros `?equipo_id=` (plantilla de un equipo) y `?jugador_id=` (equipos de un jugador); devuelve primero los contratos vigentes. Para retirar a un jugador se usa `PATCH /equipo-jugador/:id/retiro` con `{ "fecha_fin": "YYYY-MM-DD" }` (409 si ya estaba retirado). Para registrar una vinculación de jugador a equipo:
 
 ```json
 {
@@ -353,13 +360,15 @@ pueden eliminar hasta borrar sus asociaciones.
 |---|---|---|
 | `POST`, `GET` | `/deportes` | Crear y listar deportes. |
 | `GET`, `PATCH`, `DELETE` | `/deportes/:id` | Consultar, actualizar o eliminar un deporte. |
-| `POST`, `GET` | `/equipos-deportes` | Crear y listar asociaciones equipo-deporte; `?equipo_id=` filtra las de un equipo. |
+| `POST`, `GET` | `/equipos-deportes` | Crear y listar asociaciones equipo-deporte; `?equipo_id=` lista los deportes de un equipo y `?deporte_id=` los equipos de un deporte (404 si el equipo o el deporte no existe). |
 | `GET`, `PATCH`, `DELETE` | `/equipos-deportes/:id` | Consultar, actualizar o eliminar una asociación. |
 
 Cada deporte requiere `nombre` y `descripcion`; `deporte_padre_id` es opcional
 para construir una jerarquía. `/equipos-deportes` recibe `equipo_id` y
-`deporte_id`. No se permite repetir una pareja ni eliminar deportes o equipos
-que todavía tengan asociaciones.
+`deporte_id`. No se permite repetir una pareja (409, garantizado también por el
+índice único ante solicitudes simultáneas) ni eliminar deportes o equipos que
+todavía tengan asociaciones. `DELETE /equipos-deportes/:id` retira solo la
+asociación; el equipo y el deporte se conservan.
 
 ```json
 POST /deportes

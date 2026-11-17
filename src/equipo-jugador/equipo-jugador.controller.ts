@@ -7,8 +7,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CreateEquipoJugadorDto } from './dto/create-equipo-jugador.dto';
+import { FindEquipoJugadorQueryDto } from './dto/find-equipo-jugador-query.dto';
+import { RetirarEquipoJugadorDto } from './dto/retirar-equipo-jugador.dto';
 import { UpdateEquipoJugadorDto } from './dto/update-equipo-jugador.dto';
 import { EquipoJugadorService } from './equipo-jugador.service';
 
@@ -22,13 +25,21 @@ export class EquipoJugadorController {
   }
 
   @Get()
-  findAll() {
-    return this.equipoJugadorService.findAll();
+  findAll(@Query() query: FindEquipoJugadorQueryDto) {
+    return this.equipoJugadorService.findAll(query);
   }
 
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.equipoJugadorService.findOne(id);
+  }
+
+  @Patch(':id/retiro')
+  retirar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RetirarEquipoJugadorDto,
+  ) {
+    return this.equipoJugadorService.retirar(id, dto);
   }
 
   @Patch(':id')

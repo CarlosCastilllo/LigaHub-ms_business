@@ -1,17 +1,24 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isDuplicateEntry } from '../common/database/is-duplicate-entry';
 import { Equipo } from '../equipos/entities/equipo.entity';
 import { Jugador } from '../jugadores/entities/jugador.entity';
 import { CreateEquipoJugadorDto } from './dto/create-equipo-jugador.dto';
 import { EquipoJugadorResponseDto } from './dto/equipo-jugador-response.dto';
+import { FindEquipoJugadorQueryDto } from './dto/find-equipo-jugador-query.dto';
+import { RetirarEquipoJugadorDto } from './dto/retirar-equipo-jugador.dto';
 import { UpdateEquipoJugadorDto } from './dto/update-equipo-jugador.dto';
 import { EquipoJugador } from './entities/equipo-jugador.entity';
 import { EquipoJugadorMapper } from './mappers/equipo-jugador.mapper';
+
+const CONTRATO_VIGENTE_MESSAGE =
+  'Jugador already has an active contract with an equipo; retire it from that equipo first';
 
 @Injectable()
 export class EquipoJugadorService {
@@ -30,15 +37,42 @@ export class EquipoJugadorService {
     this.validateDates(dto.fecha_inicio, dto.fecha_fin);
     const equipo = await this.findEquipo(dto.equipo_id);
     const jugador = await this.findJugador(dto.jugador_id);
-    const saved = await this.equipoJugadorRepository.save(
-      EquipoJugadorMapper.toEntity(dto, equipo, jugador),
-    );
-    return EquipoJugadorMapper.toResponseDto(saved);
+    if (!equipo.activo) {
+      throw new BadRequestException(`Equipo ${equipo.id} is not active`);
+    }
+    if (!jugador.activo) {
+      throw new BadRequestException(`Jugador ${jugador.id} is not active`);
+    }
+    await this.assertSinContratoVigente(jugador.id);
+    try {
+      const saved = await this.equipoJugadorRepository.save(
+        EquipoJugadorMapper.toEntity(dto, equipo, jugador),
+      );
+      return EquipoJugadorMapper.toResponseDto(saved);
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw new ConflictException(CONTRATO_VIGENTE_MESSAGE);
+      }
+      throw error;
+    }
   }
 
-  async findAll(): Promise<EquipoJugadorResponseDto[]> {
+  async findAll(
+    filtros: FindEquipoJugadorQueryDto = {},
+  ): Promise<EquipoJugadorResponseDto[]> {
+    const { equipo_id, jugador_id } = filtros;
+    if (equipo_id) await this.findEquipo(equipo_id);
+    if (jugador_id) await this.findJugador(jugador_id);
     const relaciones = await this.equipoJugadorRepository.find({
+      where:
+        equipo_id || jugador_id
+          ? {
+              ...(equipo_id && { equipo: { id: equipo_id } }),
+              ...(jugador_id && { jugador: { id: jugador_id } }),
+            }
+          : undefined,
       relations: { equipo: true, jugador: true },
+      order: { activo: 'DESC', fecha_inicio: 'DESC' },
     });
     return EquipoJugadorMapper.toResponseDtoList(relaciones);
   }
@@ -52,12 +86,6 @@ export class EquipoJugadorService {
     dto: UpdateEquipoJugadorDto,
   ): Promise<EquipoJugadorResponseDto> {
     const relacion = await this.findRelacion(id);
-    if (dto.equipo_id !== undefined) {
-      relacion.equipo = await this.findEquipo(dto.equipo_id);
-    }
-    if (dto.jugador_id !== undefined) {
-      relacion.jugador = await this.findJugador(dto.jugador_id);
-    }
     const fechaInicio = dto.fecha_inicio ?? relacion.fecha_inicio;
     const fechaFin =
       dto.fecha_fin !== undefined
@@ -66,6 +94,21 @@ export class EquipoJugadorService {
     this.validateDates(fechaInicio, fechaFin);
     const saved = await this.equipoJugadorRepository.save(
       EquipoJugadorMapper.mergeEntity(relacion, dto),
+    );
+    return EquipoJugadorMapper.toResponseDto(saved);
+  }
+
+  async retirar(
+    id: string,
+    dto: RetirarEquipoJugadorDto,
+  ): Promise<EquipoJugadorResponseDto> {
+    const relacion = await this.findRelacion(id);
+    if (!relacion.activo) {
+      throw new ConflictException(`EquipoJugador #${id} is already retired`);
+    }
+    this.validateDates(relacion.fecha_inicio, dto.fecha_fin);
+    const saved = await this.equipoJugadorRepository.save(
+      EquipoJugadorMapper.retirar(relacion, dto.fecha_fin),
     );
     return EquipoJugadorMapper.toResponseDto(saved);
   }
@@ -81,6 +124,15 @@ export class EquipoJugadorService {
       throw new BadRequestException(
         'fecha_fin must be equal to or later than fecha_inicio',
       );
+    }
+  }
+
+  private async assertSinContratoVigente(jugadorId: string): Promise<void> {
+    const vigente = await this.equipoJugadorRepository.findOne({
+      where: { jugador: { id: jugadorId }, activo: true },
+    });
+    if (vigente) {
+      throw new ConflictException(CONTRATO_VIGENTE_MESSAGE);
     }
   }
 

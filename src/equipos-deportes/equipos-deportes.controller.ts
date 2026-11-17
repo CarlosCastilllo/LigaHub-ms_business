@@ -27,7 +27,7 @@ export class EquiposDeportesController {
 
   @Get()
   findAll(@Query() query: FindEquiposDeportesQueryDto) {
-    return this.equiposDeportesService.findAll(query.equipo_id);
+    return this.equiposDeportesService.findAll(query);
   }
 
   @Get(':id')
