@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { Habilidad } from '../habilidades/entities/habilidad.entity';
 import { Jugador } from '../jugadores/entities/jugador.entity';
 import { HabilidadJugador } from './entities/habilidad-jugador.entity';
@@ -79,6 +79,95 @@ describe('HabilidadJugadorService', () => {
     expect(relacionesRepository.save).not.toHaveBeenCalled();
   });
 
+  it('rejects associations to missing jugadores', async () => {
+    jugadoresRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.create({ habilidad_id: habilidadId, jugador_id: jugadorId }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(relacionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('allows assigning a habilidad to an inactive jugador', async () => {
+    jugadoresRepository.findOne.mockResolvedValue(
+      Object.assign(new Jugador(), { id: jugadorId, activo: false }),
+    );
+
+    await expect(
+      service.create({ habilidad_id: habilidadId, jugador_id: jugadorId }),
+    ).resolves.toEqual(expect.objectContaining({ jugador_id: jugadorId }));
+  });
+
+  it('returns 409 when a concurrent request wins the unique index', async () => {
+    relacionesRepository.save.mockRejectedValue(
+      new QueryFailedError(
+        'query',
+        [],
+        Object.assign(new Error('duplicate'), { code: 'ER_DUP_ENTRY' }),
+      ),
+    );
+
+    await expect(
+      service.create({ habilidad_id: habilidadId, jugador_id: jugadorId }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('does not hide unexpected persistence errors', async () => {
+    const failure = new Error('connection lost');
+    relacionesRepository.save.mockRejectedValue(failure);
+
+    await expect(
+      service.create({ habilidad_id: habilidadId, jugador_id: jugadorId }),
+    ).rejects.toBe(failure);
+  });
+
+  it('lists every association without filters', async () => {
+    relacionesRepository.find.mockResolvedValue([relacion()]);
+
+    await expect(service.findAll()).resolves.toEqual([
+      { id: relacionId, habilidad_id: habilidadId, jugador_id: jugadorId },
+    ]);
+    expect(relacionesRepository.find).toHaveBeenCalledWith({
+      where: undefined,
+      relations: { habilidad: true, jugador: true },
+    });
+  });
+
+  it('lists the habilidades of a jugador', async () => {
+    relacionesRepository.find.mockResolvedValue([relacion()]);
+
+    await service.findAll({ jugador_id: jugadorId });
+
+    expect(relacionesRepository.find).toHaveBeenCalledWith({
+      where: { jugador: { id: jugadorId } },
+      relations: { habilidad: true, jugador: true },
+    });
+  });
+
+  it('lists the jugadores of a habilidad', async () => {
+    relacionesRepository.find.mockResolvedValue([relacion()]);
+
+    await service.findAll({ habilidad_id: habilidadId });
+
+    expect(relacionesRepository.find).toHaveBeenCalledWith({
+      where: { habilidad: { id: habilidadId } },
+      relations: { habilidad: true, jugador: true },
+    });
+  });
+
+  it('returns 404 when filtering by a missing jugador or habilidad', async () => {
+    jugadoresRepository.findOne.mockResolvedValueOnce(null);
+    habilidadesRepository.findOne.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findAll({ jugador_id: jugadorId }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.findAll({ habilidad_id: habilidadId }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(relacionesRepository.find).not.toHaveBeenCalled();
+  });
+
   it('updates an existing association', async () => {
     relacionesRepository.findOne.mockResolvedValue(relacion());
 
@@ -99,5 +188,14 @@ describe('HabilidadJugadorService', () => {
       message: `HabilidadJugador #${relacionId} deleted successfully`,
     });
     expect(relacionesRepository.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 404 when removing a missing association', async () => {
+    relacionesRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.remove(relacionId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(relacionesRepository.remove).not.toHaveBeenCalled();
   });
 });

@@ -5,13 +5,18 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isDuplicateEntry } from '../common/database/is-duplicate-entry';
 import { Habilidad } from '../habilidades/entities/habilidad.entity';
 import { Jugador } from '../jugadores/entities/jugador.entity';
 import { CreateHabilidadJugadorDto } from './dto/create-habilidad-jugador.dto';
+import { FindHabilidadJugadorQueryDto } from './dto/find-habilidad-jugador-query.dto';
 import { HabilidadJugadorResponseDto } from './dto/habilidad-jugador-response.dto';
 import { UpdateHabilidadJugadorDto } from './dto/update-habilidad-jugador.dto';
 import { HabilidadJugador } from './entities/habilidad-jugador.entity';
 import { HabilidadJugadorMapper } from './mappers/habilidad-jugador.mapper';
+
+const DUPLICATE_ASSOCIATION_MESSAGE =
+  'This habilidad is already assigned to this jugador';
 
 @Injectable()
 export class HabilidadJugadorService {
@@ -30,14 +35,23 @@ export class HabilidadJugadorService {
     const habilidad = await this.findHabilidad(dto.habilidad_id);
     const jugador = await this.findJugador(dto.jugador_id);
     await this.assertAssociationDoesNotExist(dto.habilidad_id, dto.jugador_id);
-    const saved = await this.relacionesRepository.save(
-      HabilidadJugadorMapper.toEntity(habilidad, jugador),
-    );
-    return HabilidadJugadorMapper.toResponseDto(saved);
+    return this.guardar(HabilidadJugadorMapper.toEntity(habilidad, jugador));
   }
 
-  async findAll(): Promise<HabilidadJugadorResponseDto[]> {
+  async findAll(
+    filtros: FindHabilidadJugadorQueryDto = {},
+  ): Promise<HabilidadJugadorResponseDto[]> {
+    const { habilidad_id, jugador_id } = filtros;
+    if (habilidad_id) await this.findHabilidad(habilidad_id);
+    if (jugador_id) await this.findJugador(jugador_id);
     const relaciones = await this.relacionesRepository.find({
+      where:
+        habilidad_id || jugador_id
+          ? {
+              ...(habilidad_id && { habilidad: { id: habilidad_id } }),
+              ...(jugador_id && { jugador: { id: jugador_id } }),
+            }
+          : undefined,
       relations: { habilidad: true, jugador: true },
     });
     return HabilidadJugadorMapper.toResponseDtoList(relaciones);
@@ -63,14 +77,27 @@ export class HabilidadJugadorService {
     if (dto.jugador_id !== undefined) {
       relacion.jugador = await this.findJugador(dto.jugador_id);
     }
-    const saved = await this.relacionesRepository.save(relacion);
-    return HabilidadJugadorMapper.toResponseDto(saved);
+    return this.guardar(relacion);
   }
 
   async remove(id: string): Promise<{ message: string }> {
     const relacion = await this.findRelacion(id);
     await this.relacionesRepository.remove(relacion);
     return { message: `HabilidadJugador #${id} deleted successfully` };
+  }
+
+  private async guardar(
+    relacion: HabilidadJugador,
+  ): Promise<HabilidadJugadorResponseDto> {
+    try {
+      const saved = await this.relacionesRepository.save(relacion);
+      return HabilidadJugadorMapper.toResponseDto(saved);
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw new ConflictException(DUPLICATE_ASSOCIATION_MESSAGE);
+      }
+      throw error;
+    }
   }
 
   private async findRelacion(id: string): Promise<HabilidadJugador> {
@@ -114,9 +141,7 @@ export class HabilidadJugadorService {
       },
     });
     if (existing && existing.id !== currentId) {
-      throw new ConflictException(
-        'This habilidad is already assigned to this jugador',
-      );
+      throw new ConflictException(DUPLICATE_ASSOCIATION_MESSAGE);
     }
   }
 }

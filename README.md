@@ -166,8 +166,8 @@ El nombre y el email del jugador son los de su usuario en ms-security. Un jugado
 
 | Campo | Tipo | Reglas |
 |---|---|---|
-| `nombre` | texto | Obligatorio, máx. 150. |
-| `descripcion` | texto | Obligatoria. |
+| `nombre` | texto | Obligatorio, máx. 150, único sin distinguir mayúsculas ni tildes (409 si se repite). |
+| `descripcion` | texto | Obligatoria, máx. 16383. |
 
 `HabilidadJugador` es la asociación N:N sin campos extra; cada pareja
 `habilidad_id` + `jugador_id` es única. La tabla intermedia se llama
@@ -353,6 +353,12 @@ Para registrar la posición del balón, se usa `pelota_id` en lugar de `jugador_
 
 La pareja habilidad-jugador no se puede repetir. Las entidades enlazadas no se
 pueden eliminar hasta borrar sus asociaciones.
+
+`GET /habilidad-jugador` admite los filtros opcionales `jugador_id` y
+`habilidad_id` para consultar las habilidades de un jugador o los jugadores de
+una habilidad; responde 404 si la entidad filtrada no existe. `DELETE
+/habilidad-jugador/:id` retira la asignación sin eliminar la habilidad ni el
+jugador.
 
 ### Deportes y equipos
 

@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isDuplicateEntry } from '../common/database/is-duplicate-entry';
+import { isReferencedRow } from '../common/database/is-referenced-row';
 import { CreateHabilidadDto } from './dto/create-habilidad.dto';
 import { HabilidadResponseDto } from './dto/habilidad-response.dto';
 import { UpdateHabilidadDto } from './dto/update-habilidad.dto';
@@ -19,14 +21,14 @@ export class HabilidadesService {
   ) {}
 
   async create(dto: CreateHabilidadDto): Promise<HabilidadResponseDto> {
-    const saved = await this.habilidadesRepository.save(
-      HabilidadMapper.toEntity(dto),
-    );
-    return HabilidadMapper.toResponseDto(saved);
+    await this.assertNombreDisponible(dto.nombre);
+    return this.guardar(HabilidadMapper.toEntity(dto));
   }
 
   async findAll(): Promise<HabilidadResponseDto[]> {
-    const habilidades = await this.habilidadesRepository.find();
+    const habilidades = await this.habilidadesRepository.find({
+      order: { nombre: 'ASC' },
+    });
     return HabilidadMapper.toResponseDtoList(habilidades);
   }
 
@@ -39,10 +41,10 @@ export class HabilidadesService {
     dto: UpdateHabilidadDto,
   ): Promise<HabilidadResponseDto> {
     const habilidad = await this.findHabilidad(id);
-    const saved = await this.habilidadesRepository.save(
-      HabilidadMapper.mergeEntity(habilidad, dto),
-    );
-    return HabilidadMapper.toResponseDto(saved);
+    if (dto.nombre !== undefined) {
+      await this.assertNombreDisponible(dto.nombre, id);
+    }
+    return this.guardar(HabilidadMapper.mergeEntity(habilidad, dto));
   }
 
   async remove(id: string): Promise<{ message: string }> {
@@ -54,12 +56,29 @@ export class HabilidadesService {
       throw new NotFoundException(`Habilidad with id ${id} not found`);
     }
     if (habilidad.jugadores_habilidad?.length) {
-      throw new ConflictException(
-        `Habilidad #${id} is assigned to jugadores; delete its associations first`,
-      );
+      throw this.asignada(id);
     }
-    await this.habilidadesRepository.remove(habilidad);
+    try {
+      await this.habilidadesRepository.remove(habilidad);
+    } catch (error) {
+      if (isReferencedRow(error)) {
+        throw this.asignada(id);
+      }
+      throw error;
+    }
     return { message: `Habilidad #${id} deleted successfully` };
+  }
+
+  private async guardar(habilidad: Habilidad): Promise<HabilidadResponseDto> {
+    try {
+      const saved = await this.habilidadesRepository.save(habilidad);
+      return HabilidadMapper.toResponseDto(saved);
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw this.duplicada(habilidad.nombre);
+      }
+      throw error;
+    }
   }
 
   private async findHabilidad(id: string): Promise<Habilidad> {
@@ -70,5 +89,29 @@ export class HabilidadesService {
       throw new NotFoundException(`Habilidad with id ${id} not found`);
     }
     return habilidad;
+  }
+
+  private async assertNombreDisponible(
+    nombre: string,
+    currentId?: string,
+  ): Promise<void> {
+    const existente = await this.habilidadesRepository.findOne({
+      where: { nombre },
+    });
+    if (existente && existente.id !== currentId) {
+      throw this.duplicada(nombre);
+    }
+  }
+
+  private duplicada(nombre: string): ConflictException {
+    return new ConflictException(
+      `A habilidad named "${nombre}" already exists`,
+    );
+  }
+
+  private asignada(id: string): ConflictException {
+    return new ConflictException(
+      `Habilidad #${id} is assigned to jugadores; delete its associations first`,
+    );
   }
 }

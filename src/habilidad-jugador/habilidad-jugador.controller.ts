@@ -7,8 +7,10 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CreateHabilidadJugadorDto } from './dto/create-habilidad-jugador.dto';
+import { FindHabilidadJugadorQueryDto } from './dto/find-habilidad-jugador-query.dto';
 import { UpdateHabilidadJugadorDto } from './dto/update-habilidad-jugador.dto';
 import { HabilidadJugadorService } from './habilidad-jugador.service';
 
@@ -24,8 +26,8 @@ export class HabilidadJugadorController {
   }
 
   @Get()
-  findAll() {
-    return this.habilidadJugadorService.findAll();
+  findAll(@Query() query: FindHabilidadJugadorQueryDto) {
+    return this.habilidadJugadorService.findAll(query);
   }
 
   @Get(':id')

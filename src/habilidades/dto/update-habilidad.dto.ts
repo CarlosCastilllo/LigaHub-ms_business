@@ -1,4 +1,15 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateHabilidadDto } from './create-habilidad.dto';
+import { ValidateIf } from 'class-validator';
+import {
+  IsDescripcionHabilidad,
+  IsNombreHabilidad,
+} from './create-habilidad.dto';
 
-export class UpdateHabilidadDto extends PartialType(CreateHabilidadDto) {}
+export class UpdateHabilidadDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsNombreHabilidad()
+  nombre?: string;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsDescripcionHabilidad()
+  descripcion?: string;
+}
