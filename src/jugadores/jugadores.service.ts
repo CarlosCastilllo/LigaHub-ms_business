@@ -13,6 +13,9 @@ import { JugadorResponseDto } from './dto/jugador-response.dto';
 import { UpdateJugadorDto } from './dto/update-jugador.dto';
 import { Jugador } from './entities/jugador.entity';
 import { JugadorMapper } from './mappers/jugador.mapper';
+import { EquipoMapper } from '../equipos/mappers/equipo.mapper';
+import { HabilidadMapper } from '../habilidades/mappers/habilidad.mapper';
+import { PerfilJugadorDto } from './dto/perfil-jugador.dto';
 
 @Injectable()
 export class JugadoresService {
@@ -49,6 +52,45 @@ export class JugadoresService {
 
   async findOne(id: string): Promise<JugadorResponseDto> {
     return JugadorMapper.toResponseDto(await this.findJugador(id));
+  }
+
+  async findPerfil(id: string): Promise<PerfilJugadorDto> {
+    const jugador = await this.jugadoresRepository.findOne({
+      where: { id },
+      relations: {
+        equipos_jugador: { equipo: true },
+        habilidades_jugador: { habilidad: true },
+      },
+    });
+    if (!jugador) {
+      throw new NotFoundException(`Jugador with id ${id} not found`);
+    }
+
+    const equipos = (jugador.equipos_jugador ?? [])
+      .filter((relacion) => relacion.equipo)
+      .map((relacion) => ({
+        relacion_id: relacion.id,
+        equipo_id: relacion.equipo_id,
+        nombre: relacion.equipo.nombre,
+        fecha_inicio: relacion.fecha_inicio,
+        fecha_fin: relacion.fecha_fin ?? null,
+        activo: relacion.activo,
+        equipo: EquipoMapper.toResponseDto(relacion.equipo),
+      }));
+
+    const habilidades = (jugador.habilidades_jugador ?? [])
+      .filter((relacion) => relacion.habilidad)
+      .map((relacion) => ({
+        relacion_id: relacion.id,
+        habilidad_id: relacion.habilidad_id,
+        habilidad: HabilidadMapper.toResponseDto(relacion.habilidad),
+      }));
+
+    return {
+      jugador: JugadorMapper.toResponseDto(jugador),
+      equipos,
+      habilidades,
+    };
   }
 
   async update(

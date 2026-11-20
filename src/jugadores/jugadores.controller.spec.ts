@@ -23,6 +23,11 @@ describe('Jugador routes', () => {
     create: jest.fn().mockResolvedValue(jugador),
     findAll: jest.fn().mockResolvedValue([jugador]),
     findOne: jest.fn().mockResolvedValue(jugador),
+    findPerfil: jest.fn().mockResolvedValue({
+      jugador,
+      equipos: [],
+      habilidades: [],
+    }),
     update: jest.fn().mockResolvedValue(jugador),
     remove: jest.fn().mockResolvedValue({ message: 'Jugador deleted' }),
   };
@@ -62,6 +67,7 @@ describe('Jugador routes', () => {
     );
     await request(server).get('/jugadores').expect(200);
     await request(server).get(`/jugadores/${jugadorId}`).expect(200);
+    await request(server).get(`/jugadores/${jugadorId}/perfil`).expect(200);
     await request(server)
       .patch(`/jugadores/${jugadorId}`)
       .send({ activo: false })

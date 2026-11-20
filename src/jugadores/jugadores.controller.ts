@@ -30,6 +30,11 @@ export class JugadoresController {
     return this.jugadoresService.findAll();
   }
 
+  @Get(':id/perfil')
+  findPerfil(@Param('id', ParseUUIDPipe) id: string) {
+    return this.jugadoresService.findPerfil(id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.jugadoresService.findOne(id);

@@ -134,6 +134,76 @@ describe('JugadoresService', () => {
     );
   });
 
+  it('returns the deportivo profile with teams and habilidades', async () => {
+    repository.findOne.mockResolvedValue(
+      Object.assign(jugador(), {
+        equipos_jugador: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440201',
+            equipo_id: '550e8400-e29b-41d4-a716-446655440202',
+            equipo: {
+              id: '550e8400-e29b-41d4-a716-446655440202',
+              nombre: 'Tigres',
+              fase_grupos_id: null,
+              activo: true,
+            },
+            fecha_inicio: '2026-01-01',
+            fecha_fin: null,
+            activo: true,
+          },
+        ],
+        habilidades_jugador: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440203',
+            habilidad_id: '550e8400-e29b-41d4-a716-446655440204',
+            habilidad: {
+              id: '550e8400-e29b-41d4-a716-446655440204',
+              nombre: 'Velocidad',
+              descripcion: 'Rapidez en carrera',
+            },
+          },
+        ],
+      }),
+    );
+
+    await expect(service.findPerfil(jugadorId)).resolves.toEqual({
+      jugador: expect.objectContaining({
+        id: jugadorId,
+        nacionalidad: 'Estadounidense',
+      }),
+      equipos: [
+        expect.objectContaining({
+          equipo_id: '550e8400-e29b-41d4-a716-446655440202',
+          nombre: 'Tigres',
+          fecha_inicio: '2026-01-01',
+          fecha_fin: null,
+          activo: true,
+        }),
+      ],
+      habilidades: [
+        expect.objectContaining({
+          habilidad_id: '550e8400-e29b-41d4-a716-446655440204',
+          habilidad: expect.objectContaining({ nombre: 'Velocidad' }),
+        }),
+      ],
+    });
+  });
+
+  it('returns empty lists in the profile when the jugador has no associations', async () => {
+    repository.findOne.mockResolvedValue(
+      Object.assign(jugador(), {
+        equipos_jugador: [],
+        habilidades_jugador: [],
+      }),
+    );
+
+    await expect(service.findPerfil(jugadorId)).resolves.toEqual({
+      jugador: expect.objectContaining({ id: jugadorId }),
+      equipos: [],
+      habilidades: [],
+    });
+  });
+
   it('prevents removing a jugador with dependent records', async () => {
     repository.findOne.mockResolvedValue(
       Object.assign(jugador(), { equipos_jugador: [{}] }),
