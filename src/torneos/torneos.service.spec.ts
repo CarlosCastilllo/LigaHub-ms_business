@@ -162,7 +162,11 @@ describe('TorneosService', () => {
 
     expect(torneosRepository.findOne).toHaveBeenCalledWith({
       where: { id: existing.id },
-      relations: { fases: true, inscripciones: true, escenarios_torneo: true },
+      relations: {
+        fases: { partidos: true },
+        inscripciones: true,
+        escenarios_torneo: true,
+      },
     });
   });
 

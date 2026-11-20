@@ -13,6 +13,7 @@ export class PartidoResponseDto {
   goles_local!: number;
   goles_visitante!: number;
   escenario_id!: string;
+  fase_id!: string | null;
   boletas?: BoletaResponseDto[];
   apuestas?: ApuestaResponseDto[];
   anotaciones?: AnotacionResponseDto[];

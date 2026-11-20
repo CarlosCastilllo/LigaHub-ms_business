@@ -13,12 +13,14 @@ export class PartidoMapper {
     escenario: Partido['escenario'],
     equipoLocal: Partido['equipo_local'],
     equipoVisitante: Partido['equipo_visitante'],
+    fase: NonNullable<Partido['fase']>,
   ): Partido {
     return Object.assign(new Partido(), {
       fecha_hora: new Date(dto.fecha_hora),
       estado: dto.estado ?? EstadoPartido.PROGRAMADO,
       equipo_local: equipoLocal,
       equipo_visitante: equipoVisitante,
+      fase,
       goles_local: dto.goles_local ?? 0,
       goles_visitante: dto.goles_visitante ?? 0,
       escenario,
@@ -49,6 +51,7 @@ export class PartidoMapper {
       goles_local: entity.goles_local,
       goles_visitante: entity.goles_visitante,
       escenario_id: entity.escenario?.id ?? entity.escenario_id,
+      fase_id: entity.fase?.id ?? entity.fase_id ?? null,
       boletas: entity.boletas
         ? BoletaMapper.toResponseDtoList(entity.boletas)
         : undefined,

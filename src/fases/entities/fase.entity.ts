@@ -3,12 +3,14 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   RelationId,
   TableInheritance,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Torneo } from '../../torneos/entities/torneo.entity';
+import { Partido } from '../../partidos/entities/partido.entity';
 
 export enum EstadoFase {
   PENDIENTE = 'PENDIENTE',
@@ -49,4 +51,7 @@ export abstract class Fase {
 
   @RelationId((fase: Fase) => fase.torneo)
   torneo_id!: string;
+
+  @OneToMany(() => Partido, (partido) => partido.fase, { cascade: false })
+  partidos?: Partido[];
 }

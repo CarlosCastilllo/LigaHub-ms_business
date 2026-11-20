@@ -69,7 +69,11 @@ export class TorneosService {
   async remove(id: string): Promise<{ message: string }> {
     const torneo = await this.torneosRepository.findOne({
       where: { id },
-      relations: { fases: true, inscripciones: true, escenarios_torneo: true },
+      relations: {
+        fases: { partidos: true },
+        inscripciones: true,
+        escenarios_torneo: true,
+      },
     });
     if (!torneo) {
       throw new NotFoundException(`Torneo with id ${id} not found`);
@@ -80,7 +84,7 @@ export class TorneosService {
       torneo.escenarios_torneo?.length
     ) {
       throw new ConflictException(
-        `Torneo #${id} has fases, inscripciones or escenarios; delete them first or deactivate it instead`,
+        `Torneo #${id} has fases, partidos, inscripciones or escenarios; delete them first or deactivate it instead`,
       );
     }
     await this.torneosRepository.remove(torneo);

@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Escenario } from '../escenarios/entities/escenario.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
+import { Fase } from '../fases/entities/fase.entity';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { PartidoResponseDto } from './dto/partido-response.dto';
 import { UpdatePartidoDto } from './dto/update-partido.dto';
@@ -22,6 +23,7 @@ const PARTIDO_RELATIONS = {
   pelota: true,
   equipo_local: true,
   equipo_visitante: true,
+  fase: true,
 } as const;
 
 @Injectable()
@@ -33,6 +35,8 @@ export class PartidosService {
     private readonly escenariosRepository: Repository<Escenario>,
     @InjectRepository(Equipo)
     private readonly equiposRepository: Repository<Equipo>,
+    @InjectRepository(Fase)
+    private readonly fasesRepository: Repository<Fase>,
   ) {}
 
   async create(dto: CreatePartidoDto): Promise<PartidoResponseDto> {
@@ -40,8 +44,9 @@ export class PartidosService {
     const equipoLocal = await this.findEquipo(dto.equipo_local_id);
     const equipoVisitante = await this.findEquipo(dto.equipo_visitante_id);
     const escenario = await this.findEscenario(dto.escenario_id);
+    const fase = await this.findFase(dto.fase_id);
     const saved = await this.partidosRepository.save(
-      PartidoMapper.toEntity(dto, escenario, equipoLocal, equipoVisitante),
+      PartidoMapper.toEntity(dto, escenario, equipoLocal, equipoVisitante, fase),
     );
     return PartidoMapper.toResponseDto(saved);
   }
@@ -77,6 +82,9 @@ export class PartidosService {
     }
     if (dto.escenario_id !== undefined) {
       partido.escenario = await this.findEscenario(dto.escenario_id);
+    }
+    if (dto.fase_id !== undefined) {
+      partido.fase = await this.findFase(dto.fase_id);
     }
     const saved = await this.partidosRepository.save(
       PartidoMapper.mergeEntity(partido, dto),
@@ -143,5 +151,13 @@ export class PartidosService {
       throw new NotFoundException(`Equipo with id ${id} not found`);
     }
     return equipo;
+  }
+
+  private async findFase(id: string): Promise<Fase> {
+    const fase = await this.fasesRepository.findOne({ where: { id } });
+    if (!fase) {
+      throw new NotFoundException(`Fase with id ${id} not found`);
+    }
+    return fase;
   }
 }

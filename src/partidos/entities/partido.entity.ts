@@ -4,6 +4,7 @@ import { Boleta } from '../../boletas/entities/boleta.entity';
 import { Escenario } from '../../escenarios/entities/escenario.entity';
 import { Pelota } from '../../pelotas/entities/pelota.entity';
 import { Equipo } from '../../equipos/entities/equipo.entity';
+import { Fase } from '../../fases/entities/fase.entity';
 import {
   Column,
   Entity,
@@ -78,6 +79,17 @@ export class Partido {
 
   @RelationId((partido: Partido) => partido.escenario)
   escenario_id!: string;
+
+  @ManyToOne(() => Fase, (fase) => fase.partidos, {
+    cascade: false,
+    nullable: true,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'fase_id' })
+  fase?: Relation<Fase> | null;
+
+  @RelationId((partido: Partido) => partido.fase)
+  fase_id!: string | null;
 
   // Lado inverso de la N:N Aficionado <-> Partido mediante Boleta.
   @OneToMany(() => Boleta, (boleta) => boleta.partido, { cascade: false })

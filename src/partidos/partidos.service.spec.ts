@@ -11,6 +11,8 @@ import { Boleta } from '../boletas/entities/boleta.entity';
 import { EstadoPelota, Pelota } from '../pelotas/entities/pelota.entity';
 import { Escenario } from '../escenarios/entities/escenario.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
+import { FaseGrupos } from '../fases/entities/fase-grupos.entity';
+import { Fase } from '../fases/entities/fase.entity';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { EstadoPartido, Partido } from './entities/partido.entity';
 import { PartidoMapper } from './mappers/partido.mapper';
@@ -25,11 +27,13 @@ describe('PartidosService', () => {
     Pick<Repository<Escenario>, 'findOne'>
   >;
   let equiposRepository: jest.Mocked<Pick<Repository<Equipo>, 'findOne'>>;
+  let fasesRepository: jest.Mocked<Pick<Repository<Fase>, 'findOne'>>;
 
   const escenarioId = '550e8400-e29b-41d4-a716-446655440010';
   const partidoId = '550e8400-e29b-41d4-a716-446655440060';
   const localId = '550e8400-e29b-41d4-a716-446655440071';
   const visitanteId = '550e8400-e29b-41d4-a716-446655440072';
+  const faseId = '550e8400-e29b-41d4-a716-446655440073';
 
   function escenario(id = escenarioId): Escenario {
     return Object.assign(new Escenario(), {
@@ -42,6 +46,10 @@ describe('PartidosService', () => {
 
   function equipo(id: string): Equipo {
     return Object.assign(new Equipo(), { id, nombre: `Equipo ${id}` });
+  }
+
+  function fase(id = faseId): FaseGrupos {
+    return Object.assign(new FaseGrupos(), { id });
   }
 
   function partido(): Partido {
@@ -57,6 +65,8 @@ describe('PartidosService', () => {
       goles_visitante: 0,
       escenario: escenario(),
       escenario_id: escenarioId,
+      fase: fase(),
+      fase_id: faseId,
     });
   }
 
@@ -65,6 +75,7 @@ describe('PartidosService', () => {
     equipo_local_id: localId,
     equipo_visitante_id: visitanteId,
     escenario_id: escenarioId,
+    fase_id: faseId,
   };
 
   beforeEach(() => {
@@ -76,10 +87,14 @@ describe('PartidosService', () => {
     };
     escenariosRepository = { findOne: jest.fn() };
     equiposRepository = { findOne: jest.fn() };
+    fasesRepository = { findOne: jest.fn() };
     equiposRepository.findOne.mockImplementation(async ({ where }) => {
       const id = (where as { id: string }).id;
       return equipo(id);
     });
+    fasesRepository.findOne.mockImplementation(async ({ where }) =>
+      fase((where as { id: string }).id),
+    );
     partidosRepository.save.mockImplementation(
       async (entity) => entity as Partido,
     );
@@ -87,6 +102,7 @@ describe('PartidosService', () => {
       partidosRepository as unknown as Repository<Partido>,
       escenariosRepository as unknown as Repository<Escenario>,
       equiposRepository as unknown as Repository<Equipo>,
+      fasesRepository as unknown as Repository<Fase>,
     );
   });
 
@@ -99,6 +115,9 @@ describe('PartidosService', () => {
       where: { id: escenarioId },
     });
     expect(equiposRepository.findOne).toHaveBeenCalledTimes(2);
+    expect(fasesRepository.findOne).toHaveBeenCalledWith({
+      where: { id: faseId },
+    });
     expect(result).toEqual(
       expect.objectContaining({
         fecha_hora: new Date('2026-11-15T19:30:00-05:00'),
@@ -106,6 +125,7 @@ describe('PartidosService', () => {
         goles_local: 0,
         goles_visitante: 0,
         escenario_id: escenarioId,
+        fase_id: faseId,
       }),
     );
   });
@@ -156,8 +176,19 @@ describe('PartidosService', () => {
         pelota: true,
         equipo_local: true,
         equipo_visitante: true,
+        fase: true,
       },
     });
+  });
+
+  it('rejects creation when the referenced phase does not exist', async () => {
+    fasesRepository.findOne.mockResolvedValue(null);
+    escenariosRepository.findOne.mockResolvedValue(escenario());
+
+    await expect(service.create(createDto)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(partidosRepository.save).not.toHaveBeenCalled();
   });
 
   it('updates the score and state of a partido', async () => {
@@ -191,6 +222,18 @@ describe('PartidosService', () => {
 
     expect(item.escenario).toBe(otroEscenario);
     expect(result.escenario_id).toBe(otroEscenario.id);
+  });
+
+  it('reassigns a partido to an existing phase', async () => {
+    const item = partido();
+    const otraFase = fase('550e8400-e29b-41d4-a716-446655440099');
+    partidosRepository.findOne.mockResolvedValue(item);
+    fasesRepository.findOne.mockResolvedValue(otraFase);
+
+    const result = await service.update(partidoId, { fase_id: otraFase.id });
+
+    expect(item.fase).toBe(otraFase);
+    expect(result.fase_id).toBe(otraFase.id);
   });
 
   it('does not reassign a partido to a missing escenario', async () => {

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -106,9 +107,17 @@ export class FasesService {
   }
 
   async remove(id: string): Promise<{ message: string }> {
-    const fase = await this.fasesRepository.findOne({ where: { id } });
+    const fase = await this.fasesRepository.findOne({
+      where: { id },
+      relations: { partidos: true },
+    });
     if (!fase) {
       throw new NotFoundException(`Fase with id ${id} not found`);
+    }
+    if (fase.partidos?.length) {
+      throw new ConflictException(
+        `Fase #${id} has partidos; delete or reassign them first`,
+      );
     }
 
     await this.fasesRepository.remove(fase);

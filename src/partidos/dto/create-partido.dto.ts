@@ -35,4 +35,7 @@ export class CreatePartidoDto {
 
   @IsUUID()
   escenario_id!: string;
+
+  @IsUUID()
+  fase_id!: string;
 }

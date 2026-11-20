@@ -1,5 +1,9 @@
 import { jest } from '@jest/globals';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { UpdateFaseDto } from './dto/update-fase.dto';
 import { FaseFinal, ModalidadFinal } from './entities/fase-final.entity';
@@ -207,6 +211,20 @@ describe('FasesService', () => {
     expect(updated.modalidad).toBe(ModalidadFinal.PARTIDO_UNICO);
     expect(repository.remove).toHaveBeenCalledWith(phase);
     expect(removed.message).toContain(phase.id);
+    expect(repository.findOne).toHaveBeenLastCalledWith({
+      where: { id: phase.id },
+      relations: { partidos: true },
+    });
+  });
+
+  it('prevents deleting a phase that has matches', async () => {
+    const phase = Object.assign(finalPhase(), { partidos: [{}] });
+    repository.findOne.mockResolvedValue(phase);
+
+    await expect(service.remove(phase.id)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(repository.remove).not.toHaveBeenCalled();
   });
 
   it('lists every phase when no type filter is given', async () => {
