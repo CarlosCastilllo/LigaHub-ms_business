@@ -29,8 +29,8 @@ describe('Tournament and phase CRUD routes', () => {
     fecha_fin: '2026-03-15',
     estado: 'PENDIENTE',
     torneo_id: torneoId,
-    cantidad_grupos: 4,
-    equipos_por_grupo: 4,
+    nombre: 'Grupo A',
+    cupo_equipos: 4,
   };
   const torneosService = {
     create: jest.fn().mockResolvedValue(torneo),
@@ -109,8 +109,8 @@ describe('Tournament and phase CRUD routes', () => {
         fecha_fin: '2026-03-15',
         estado: 'PENDIENTE',
         torneo_id: torneoId,
-        cantidad_grupos: 4,
-        equipos_por_grupo: 4,
+        nombre: 'Grupo A',
+        cupo_equipos: 4,
       })
       .expect(201)
       .expect(({ body }) => expect(body.torneo_id).toBe(torneoId));
@@ -164,15 +164,15 @@ describe('Tournament and phase CRUD routes', () => {
         fecha_fin: '2026-03-15',
         estado: 'PENDIENTE',
         torneo_id: torneoId,
-        cantidad_grupos: 0,
-        equipos_por_grupo: 1,
+        nombre: '',
+        cupo_equipos: 1,
       })
       .expect(400)
       .expect(({ body }) => {
         expect(body.message).toEqual(
           expect.arrayContaining([
-            'La cantidad de grupos debe ser al menos 1',
-            'Debe haber al menos 2 equipos por grupo',
+            'El nombre del grupo es obligatorio',
+            'El grupo debe admitir al menos 2 equipos',
           ]),
         );
         expect(body.message.join(' ')).not.toMatch(/must|should be/i);

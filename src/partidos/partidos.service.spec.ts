@@ -11,7 +11,6 @@ import { Boleta } from '../boletas/entities/boleta.entity';
 import { EstadoPelota, Pelota } from '../pelotas/entities/pelota.entity';
 import { Escenario } from '../escenarios/entities/escenario.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
-import { FaseGrupos } from '../fases/entities/fase-grupos.entity';
 import { Fase } from '../fases/entities/fase.entity';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { EstadoPartido, Partido } from './entities/partido.entity';
@@ -48,8 +47,8 @@ describe('PartidosService', () => {
     return Object.assign(new Equipo(), { id, nombre: `Equipo ${id}` });
   }
 
-  function fase(id = faseId): FaseGrupos {
-    return Object.assign(new FaseGrupos(), { id });
+  function fase(id = faseId): Fase {
+    return Object.assign(new Fase(), { id });
   }
 
   function partido(): Partido {

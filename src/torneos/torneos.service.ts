@@ -50,7 +50,7 @@ export class TorneosService {
     await this.findTorneo(id);
     const fases = await this.fasesRepository.find({
       where: { torneo: { id } },
-      relations: { torneo: true },
+      relations: { torneo: true, grupos: true, final: true },
     });
     return this.faseMapper.toResponseDtoList(fases);
   }

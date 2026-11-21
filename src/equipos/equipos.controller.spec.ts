@@ -60,7 +60,10 @@ describe('Team routes', () => {
   it('serves the team CRUD with validated payloads', async () => {
     const server = app.getHttpServer();
 
-    await request(server).post('/equipos').send({ nombre: 'Tigres' }).expect(201);
+    await request(server)
+      .post('/equipos')
+      .send({ nombre: 'Tigres' })
+      .expect(201);
     await request(server).get('/equipos').expect(200);
     await request(server).get(`/equipos/${equipoId}`).expect(200);
     await request(server)

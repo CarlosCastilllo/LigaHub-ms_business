@@ -32,10 +32,7 @@ export class EquiposController {
   }
 
   @Patch(':id')
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateEquipoDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateEquipoDto) {
     return this.equiposService.update(id, dto);
   }
 

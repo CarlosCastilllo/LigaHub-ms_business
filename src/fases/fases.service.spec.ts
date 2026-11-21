@@ -20,7 +20,9 @@ describe('FasesService', () => {
     Pick<Repository<Fase>, 'save' | 'find' | 'findOne' | 'remove'>
   >;
   let torneosRepository: jest.Mocked<Pick<Repository<Torneo>, 'findOne'>>;
-  let equiposRepository: jest.Mocked<Pick<Repository<Equipo>, 'find'>>;
+  let equiposRepository: jest.Mocked<
+    Pick<Repository<Equipo>, 'find' | 'count'>
+  >;
 
   beforeEach(() => {
     repository = {
@@ -30,7 +32,8 @@ describe('FasesService', () => {
       remove: jest.fn(),
     };
     torneosRepository = { findOne: jest.fn() };
-    equiposRepository = { find: jest.fn() };
+    equiposRepository = { find: jest.fn(), count: jest.fn() };
+    equiposRepository.count.mockResolvedValue(0);
     equiposRepository.find.mockResolvedValue([]);
     repository.findOne.mockResolvedValue(null);
     service = new FasesService(
@@ -52,33 +55,41 @@ describe('FasesService', () => {
     });
   }
 
-  function groupsPhase(): FaseGrupos {
-    return Object.assign(new FaseGrupos(), {
+  function groupsPhase(): Fase {
+    return Object.assign(new Fase(), {
       id: '550e8400-e29b-41d4-a716-446655440001',
       numero_orden: 1,
       fecha_inicio: '2026-03-01',
       fecha_fin: '2026-03-15',
       estado: EstadoFase.PENDIENTE,
       torneo_id: '550e8400-e29b-41d4-a716-446655440000',
-      cantidad_grupos: 4,
-      equipos_por_grupo: 4,
+      grupos: Object.assign(new FaseGrupos(), {
+        id: '550e8400-e29b-41d4-a716-446655440011',
+        nombre: 'Grupo A',
+        cupo_equipos: 4,
+      }),
+      final: null,
     });
   }
 
-  function finalPhase(): FaseFinal {
-    return Object.assign(new FaseFinal(), {
+  function finalPhase(): Fase {
+    return Object.assign(new Fase(), {
       id: '550e8400-e29b-41d4-a716-446655440002',
       numero_orden: 2,
       fecha_inicio: '2026-03-16',
       fecha_fin: '2026-03-30',
       estado: EstadoFase.PENDIENTE,
       torneo_id: '550e8400-e29b-41d4-a716-446655440000',
-      numero_partidos: 2,
-      modalidad: ModalidadFinal.IDA_Y_VUELTA,
+      grupos: null,
+      final: Object.assign(new FaseFinal(), {
+        id: '550e8400-e29b-41d4-a716-446655440012',
+        numero_partidos: 2,
+        modalidad: ModalidadFinal.IDA_Y_VUELTA,
+      }),
     });
   }
 
-  it('creates the concrete subtype and returns its response DTO', async () => {
+  it('creates the phase with its 1:1 groups detail and returns its response DTO', async () => {
     const phase = groupsPhase();
     const torneo = tournament();
     torneosRepository.findOne.mockResolvedValue(torneo);
@@ -91,19 +102,27 @@ describe('FasesService', () => {
       fecha_fin: phase.fecha_fin,
       estado: phase.estado,
       torneo_id: phase.torneo_id,
-      cantidad_grupos: phase.cantidad_grupos,
-      equipos_por_grupo: phase.equipos_por_grupo,
+      nombre: 'Grupo A',
+      cupo_equipos: 4,
     });
 
     expect(torneosRepository.findOne).toHaveBeenCalledWith({
       where: { id: phase.torneo_id },
     });
-    expect(repository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ cantidad_grupos: 4, torneo }),
-    );
+    const saved = repository.save.mock.calls[0]?.[0] as Fase;
+    expect(saved).toBeInstanceOf(Fase);
+    expect(saved.torneo).toBe(torneo);
+    expect(saved.grupos).toBeInstanceOf(FaseGrupos);
+    expect(saved.grupos).toMatchObject({
+      nombre: 'Grupo A',
+      cupo_equipos: 4,
+    });
+    expect(saved.final).toBeUndefined();
     expect(result.tipo).toBe('GRUPOS');
+    expect(result.fase_grupos_id).toBe(phase.grupos?.id);
     expect(result.torneo_id).toBe(torneo.id);
-    expect(result.cantidad_grupos).toBe(4);
+    expect(result.nombre).toBe('Grupo A');
+    expect(result.cupo_equipos).toBe(4);
     expect(result).not.toHaveProperty('numero_partidos');
   });
 
@@ -118,8 +137,8 @@ describe('FasesService', () => {
         fecha_fin: '2026-03-15',
         estado: EstadoFase.PENDIENTE,
         torneo_id: '550e8400-e29b-41d4-a716-446655440000',
-        cantidad_grupos: 4,
-        equipos_por_grupo: 4,
+        nombre: 'Grupo A',
+        cupo_equipos: 4,
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(repository.save).not.toHaveBeenCalled();
@@ -134,8 +153,8 @@ describe('FasesService', () => {
         fecha_fin: '2026-03-15',
         estado: EstadoFase.PENDIENTE,
         torneo_id: '550e8400-e29b-41d4-a716-446655440000',
-        cantidad_grupos: 4,
-        equipos_por_grupo: 4,
+        nombre: 'Grupo A',
+        cupo_equipos: 4,
         modalidad: ModalidadFinal.PARTIDO_UNICO,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -152,17 +171,18 @@ describe('FasesService', () => {
         fecha_fin: '2026-03-01',
         estado: EstadoFase.PENDIENTE,
         torneo_id: '550e8400-e29b-41d4-a716-446655440000',
-        cantidad_grupos: 4,
-        equipos_por_grupo: 4,
+        nombre: 'Grupo A',
+        cupo_equipos: 4,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(torneosRepository.findOne).not.toHaveBeenCalled();
     expect(repository.save).not.toHaveBeenCalled();
   });
 
-  it('rejects a duplicate phase order in the same tournament', async () => {
+  it('allows several phases with the same order in a tournament', async () => {
     torneosRepository.findOne.mockResolvedValue(tournament());
     repository.findOne.mockResolvedValue(groupsPhase());
+    repository.save.mockResolvedValue(groupsPhase());
 
     await expect(
       service.create({
@@ -172,12 +192,22 @@ describe('FasesService', () => {
         fecha_fin: '2026-03-15',
         estado: EstadoFase.PENDIENTE,
         torneo_id: '550e8400-e29b-41d4-a716-446655440000',
-        cantidad_grupos: 4,
-        equipos_por_grupo: 4,
+        nombre: 'Grupo B',
+        cupo_equipos: 4,
       }),
-    ).rejects.toThrow(
-      'El torneo ya tiene una fase en la posición 1',
-    );
+    ).resolves.toMatchObject({ numero_orden: 1 });
+    expect(repository.save).toHaveBeenCalled();
+  });
+
+  it('rejects lowering the group capacity below its assigned teams', async () => {
+    repository.findOne.mockResolvedValue(groupsPhase());
+    equiposRepository.count.mockResolvedValue(3);
+
+    await expect(
+      service.update('550e8400-e29b-41d4-a716-446655440001', {
+        cupo_equipos: 2,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(repository.save).not.toHaveBeenCalled();
   });
 
@@ -240,7 +270,7 @@ describe('FasesService', () => {
     expect(removed.message).toContain('fase número');
     expect(repository.findOne).toHaveBeenLastCalledWith({
       where: { id: phase.id },
-      relations: { partidos: true, torneo: true },
+      relations: { partidos: true, torneo: true, grupos: true, final: true },
     });
   });
 
@@ -251,6 +281,20 @@ describe('FasesService', () => {
     await expect(service.remove(phase.id)).rejects.toBeInstanceOf(
       ConflictException,
     );
+    expect(repository.remove).not.toHaveBeenCalled();
+  });
+
+  it('prevents deleting a groups phase that still has teams assigned', async () => {
+    const phase = groupsPhase();
+    repository.findOne.mockResolvedValue(phase);
+    equiposRepository.find.mockResolvedValue([new Equipo()]);
+
+    await expect(service.remove(phase.id)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(equiposRepository.find).toHaveBeenCalledWith({
+      where: { fase_grupos_id: phase.grupos?.id },
+    });
     expect(repository.remove).not.toHaveBeenCalled();
   });
 
@@ -265,21 +309,25 @@ describe('FasesService', () => {
     ]);
   });
 
-  it('filters phases by the discriminator column when a type is given', async () => {
+  it('filters phases by the existing 1:1 detail when a type is given', async () => {
     const queryBuilder = {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      getMany: jest.fn<() => Promise<Fase[]>>().mockResolvedValue([finalPhase()]),
+      getMany: jest
+        .fn<() => Promise<Fase[]>>()
+        .mockResolvedValue([finalPhase()]),
     };
     const createQueryBuilder = jest.fn().mockReturnValue(queryBuilder);
     Object.assign(repository, { createQueryBuilder });
 
     const result = await service.findAll({ tipo: TipoFase.FINAL });
 
-    expect(queryBuilder.where).toHaveBeenCalledWith('fase.tipo = :tipo', {
-      tipo: TipoFase.FINAL,
-    });
+    expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+      'fase.final',
+      'final',
+    );
+    expect(queryBuilder.where).toHaveBeenCalledWith('final.id IS NOT NULL');
     expect(repository.find).not.toHaveBeenCalled();
     expect(result).toHaveLength(1);
     expect(result[0]?.tipo).toBe(TipoFase.FINAL);

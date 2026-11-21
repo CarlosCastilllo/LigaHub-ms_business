@@ -6,7 +6,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FaseGrupos } from '../fases/entities/fase-grupos.entity';
-import { Fase } from '../fases/entities/fase.entity';
+import {
+  EstadoInscripcion,
+  Inscripcion,
+} from '../inscripciones/entities/inscripcion.entity';
 import { CreateEquipoDto } from './dto/create-equipo.dto';
 import { EquipoResponseDto } from './dto/equipo-response.dto';
 import { UpdateEquipoDto } from './dto/update-equipo.dto';
@@ -18,17 +21,18 @@ export class EquiposService {
   constructor(
     @InjectRepository(Equipo)
     private readonly equiposRepository: Repository<Equipo>,
-    @InjectRepository(Fase)
-    private readonly fasesRepository: Repository<Fase>,
+    @InjectRepository(FaseGrupos)
+    private readonly fasesGruposRepository: Repository<FaseGrupos>,
+    @InjectRepository(Inscripcion)
+    private readonly inscripcionesRepository: Repository<Inscripcion>,
   ) {}
 
   async create(dto: CreateEquipoDto): Promise<EquipoResponseDto> {
     if (dto.fase_grupos_id) {
-      await this.findFaseGrupos(dto.fase_grupos_id);
+      // Un equipo recien creado aun no tiene inscripciones: se rechazara.
+      await this.assertPuedeEntrarAlGrupo(dto.fase_grupos_id);
     }
-    const saved = await this.equiposRepository.save(
-      EquipoMapper.toEntity(dto),
-    );
+    const saved = await this.equiposRepository.save(EquipoMapper.toEntity(dto));
     return EquipoMapper.toResponseDto(saved);
   }
 
@@ -41,13 +45,14 @@ export class EquiposService {
     return EquipoMapper.toResponseDto(await this.findEquipo(id));
   }
 
-  async update(
-    id: string,
-    dto: UpdateEquipoDto,
-  ): Promise<EquipoResponseDto> {
+  async update(id: string, dto: UpdateEquipoDto): Promise<EquipoResponseDto> {
     const equipo = await this.findEquipo(id);
-    if (dto.fase_grupos_id !== undefined && dto.fase_grupos_id !== null) {
-      await this.findFaseGrupos(dto.fase_grupos_id);
+    if (
+      dto.fase_grupos_id !== undefined &&
+      dto.fase_grupos_id !== null &&
+      dto.fase_grupos_id !== equipo.fase_grupos_id
+    ) {
+      await this.assertPuedeEntrarAlGrupo(dto.fase_grupos_id, equipo.id);
     }
     const saved = await this.equiposRepository.save(
       EquipoMapper.mergeEntity(equipo, dto),
@@ -96,11 +101,45 @@ export class EquiposService {
     return equipo;
   }
 
-  private async findFaseGrupos(id: string): Promise<FaseGrupos> {
-    const fase = await this.fasesRepository.findOne({ where: { id } });
-    if (!(fase instanceof FaseGrupos)) {
-      throw new NotFoundException('La fase de grupos no fue encontrada');
+  // fase_grupos_id es el id del grupo en fases_grupos. Para entrar, el equipo
+  // debe tener una inscripcion ACEPTADA en el torneo del grupo y debe haber cupo.
+  private async assertPuedeEntrarAlGrupo(
+    grupoId: string,
+    equipoId?: string,
+  ): Promise<void> {
+    const grupo = await this.fasesGruposRepository.findOne({
+      where: { id: grupoId },
+      relations: { fase: { torneo: true } },
+    });
+    if (!grupo) {
+      throw new NotFoundException('El grupo no fue encontrado');
     }
-    return fase;
+
+    const torneoId = grupo.fase.torneo.id;
+    const inscripcion = equipoId
+      ? await this.inscripcionesRepository.findOne({
+          where: {
+            equipo: { id: equipoId },
+            torneo: { id: torneoId },
+            estado: EstadoInscripcion.ACEPTADA,
+          },
+        })
+      : null;
+    if (!inscripcion) {
+      throw new ConflictException(
+        `El equipo no tiene una inscripción aceptada en el torneo "${grupo.fase.torneo.nombre}"`,
+      );
+    }
+
+    if (grupo.cupo_equipos != null) {
+      const asignados = await this.equiposRepository.count({
+        where: { fase_grupos_id: grupoId },
+      });
+      if (asignados >= grupo.cupo_equipos) {
+        throw new ConflictException(
+          `El grupo "${grupo.nombre}" ya completó su cupo de ${grupo.cupo_equipos} equipos`,
+        );
+      }
+    }
   }
 }

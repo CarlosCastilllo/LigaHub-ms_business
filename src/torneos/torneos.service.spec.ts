@@ -108,7 +108,7 @@ describe('TorneosService', () => {
     await expect(service.findFases(torneo().id)).resolves.toEqual([]);
     expect(fasesRepository.find).toHaveBeenCalledWith({
       where: { torneo: { id: torneo().id } },
-      relations: { torneo: true },
+      relations: { torneo: true, grupos: true, final: true },
     });
   });
 

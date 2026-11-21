@@ -2,8 +2,11 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
+  IsString,
   IsUUID,
   Matches,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -45,14 +48,17 @@ export class CreateFaseDto {
   torneo_id!: string;
 
   @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.GRUPOS)
-  @IsInt({ message: 'La cantidad de grupos debe ser un número entero' })
-  @Min(1, { message: 'La cantidad de grupos debe ser al menos 1' })
-  cantidad_grupos?: number;
+  @IsString({ message: 'El nombre del grupo debe ser un texto' })
+  @IsNotEmpty({ message: 'El nombre del grupo es obligatorio' })
+  @MaxLength(100, {
+    message: 'El nombre del grupo no puede superar los 100 caracteres',
+  })
+  nombre?: string;
 
   @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.GRUPOS)
-  @IsInt({ message: 'Los equipos por grupo deben ser un número entero' })
-  @Min(2, { message: 'Debe haber al menos 2 equipos por grupo' })
-  equipos_por_grupo?: number;
+  @IsInt({ message: 'El cupo de equipos debe ser un número entero' })
+  @Min(2, { message: 'El grupo debe admitir al menos 2 equipos' })
+  cupo_equipos?: number;
 
   @ValidateIf((fase: CreateFaseDto) => fase.tipo === TipoFase.FINAL)
   @IsInt({ message: 'El número de partidos debe ser un número entero' })

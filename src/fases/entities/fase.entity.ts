@@ -4,13 +4,15 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   RelationId,
-  TableInheritance,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Torneo } from '../../torneos/entities/torneo.entity';
 import { Partido } from '../../partidos/entities/partido.entity';
+import { FaseGrupos } from './fase-grupos.entity';
+import { FaseFinal } from './fase-final.entity';
 
 export enum EstadoFase {
   PENDIENTE = 'PENDIENTE',
@@ -18,14 +20,16 @@ export enum EstadoFase {
   FINALIZADA = 'FINALIZADA',
 }
 
+// Ya no es una columna: el tipo se deduce del detalle 1:1 que tenga la fase
+// (fases_grupos o fases_finales). Se mantiene para la API y los filtros.
 export enum TipoFase {
   GRUPOS = 'GRUPOS',
   FINAL = 'FINAL',
 }
 
+// numero_orden ya no es unico por torneo: varios grupos pueden compartir etapa.
 @Entity('fases')
-@TableInheritance({ column: { type: 'varchar', name: 'tipo' } })
-export abstract class Fase {
+export class Fase {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -54,4 +58,16 @@ export abstract class Fase {
 
   @OneToMany(() => Partido, (partido) => partido.fase, { cascade: false })
   partidos?: Partido[];
+
+  // Lado inverso de la 1:1 Fase <-> FaseGrupos (la FK vive en fases_grupos).
+  @OneToOne(() => FaseGrupos, (grupos) => grupos.fase, {
+    cascade: ['insert', 'update'],
+  })
+  grupos?: Relation<FaseGrupos> | null;
+
+  // Lado inverso de la 1:1 Fase <-> FaseFinal (la FK vive en fases_finales).
+  @OneToOne(() => FaseFinal, (final) => final.fase, {
+    cascade: ['insert', 'update'],
+  })
+  final?: Relation<FaseFinal> | null;
 }
