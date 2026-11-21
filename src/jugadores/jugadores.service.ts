@@ -63,7 +63,7 @@ export class JugadoresService {
       },
     });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
 
     const equipos = (jugador.equipos_jugador ?? [])
@@ -118,7 +118,7 @@ export class JugadoresService {
       },
     });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
     if (
       jugador.anotaciones?.length ||
@@ -127,17 +127,17 @@ export class JugadoresService {
       jugador.habilidades_jugador?.length
     ) {
       throw new ConflictException(
-        `Jugador #${id} has anotaciones, posiciones espaciales, equipo history or habilidades; delete or reassign them first, or deactivate it instead`,
+        `El jugador asociado al usuario ${jugador.user_id} tiene anotaciones, posiciones espaciales, historial de equipos o habilidades. Elimine o reasigne esas relaciones o desactívelo`,
       );
     }
     await this.jugadoresRepository.remove(jugador);
-    return { message: `Jugador #${id} deleted successfully` };
+    return { message: `Se eliminó el jugador asociado al usuario ${jugador.user_id} correctamente` };
   }
 
   private async findJugador(id: string): Promise<Jugador> {
     const jugador = await this.jugadoresRepository.findOne({ where: { id } });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
     return jugador;
   }
@@ -150,13 +150,17 @@ export class JugadoresService {
   }
 
   private duplicado(userId: number): ConflictException {
-    return new ConflictException(`A jugador for user ${userId} already exists`);
+    return new ConflictException(
+      `Ya existe un jugador asociado al usuario ${userId}`,
+    );
   }
 
   private assertFechaNoFutura(fecha: string): void {
     const hoy = new Date().toISOString().slice(0, 10);
     if (fecha > hoy) {
-      throw new BadRequestException('fecha_nacimiento cannot be in the future');
+      throw new BadRequestException(
+        'La fecha de nacimiento no puede ser futura',
+      );
     }
   }
 }

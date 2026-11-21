@@ -68,7 +68,7 @@ export class EquiposService {
       },
     });
     if (!equipo) {
-      throw new NotFoundException(`Equipo with id ${id} not found`);
+      throw new NotFoundException('El equipo no fue encontrado');
     }
     if (
       equipo.jugadores_equipo?.length ||
@@ -79,11 +79,11 @@ export class EquiposService {
       equipo.equipos_deportes?.length
     ) {
       throw new ConflictException(
-        `Equipo #${id} has jugadores, inscripciones, partidos, aficionado preferences or deportes; delete or reassign them first, or deactivate it instead`,
+        `El equipo "${equipo.nombre}" tiene jugadores, inscripciones, partidos, aficionados o deportes asociados. Elimine o reasigne esas relaciones o desactívelo`,
       );
     }
     await this.equiposRepository.remove(equipo);
-    return { message: `Equipo #${id} deleted successfully` };
+    return { message: `Se eliminó el equipo "${equipo.nombre}" correctamente` };
   }
 
   private async findEquipo(id: string): Promise<Equipo> {
@@ -91,7 +91,7 @@ export class EquiposService {
       where: { id },
     });
     if (!equipo) {
-      throw new NotFoundException(`Equipo with id ${id} not found`);
+      throw new NotFoundException('El equipo no fue encontrado');
     }
     return equipo;
   }
@@ -99,7 +99,7 @@ export class EquiposService {
   private async findFaseGrupos(id: string): Promise<FaseGrupos> {
     const fase = await this.fasesRepository.findOne({ where: { id } });
     if (!(fase instanceof FaseGrupos)) {
-      throw new NotFoundException(`FaseGrupos with id ${id} not found`);
+      throw new NotFoundException('La fase de grupos no fue encontrada');
     }
     return fase;
   }

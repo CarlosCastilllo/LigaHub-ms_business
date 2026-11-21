@@ -256,7 +256,7 @@ describe('ApuestasService', () => {
     apuestasRepository.findOne.mockResolvedValue(apuesta());
 
     await expect(service.remove(apuestaId)).resolves.toEqual({
-      message: `Apuesta #${apuestaId} deleted successfully`,
+      message: 'La apuesta se eliminó correctamente',
     });
   });
 

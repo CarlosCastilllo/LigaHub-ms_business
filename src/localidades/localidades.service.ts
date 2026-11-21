@@ -61,11 +61,11 @@ export class LocalidadesService {
     // La FK de boletas hacia localidades usa ON DELETE NO ACTION.
     if (localidad.boletas?.length) {
       throw new ConflictException(
-        `Localidad #${id} has boletas; delete them first`,
+        `La localidad "${localidad.nombre}" tiene boletas asociadas. Elimine esas boletas primero`,
       );
     }
     await this.localidadesRepository.remove(localidad);
-    return { message: `Localidad #${id} deleted successfully` };
+    return { message: `Se eliminó la localidad "${localidad.nombre}" correctamente` };
   }
 
   private async findLocalidad(id: string): Promise<Localidad> {
@@ -74,7 +74,7 @@ export class LocalidadesService {
       relations: LOCALIDAD_RELATIONS,
     });
     if (!localidad) {
-      throw new NotFoundException(`Localidad with id ${id} not found`);
+      throw new NotFoundException('La localidad no fue encontrada');
     }
     return localidad;
   }
@@ -84,7 +84,7 @@ export class LocalidadesService {
       where: { id },
     });
     if (!escenario) {
-      throw new NotFoundException(`Escenario with id ${id} not found`);
+      throw new NotFoundException('El escenario no fue encontrado');
     }
     return escenario;
   }

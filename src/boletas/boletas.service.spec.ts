@@ -205,7 +205,7 @@ describe('BoletasService', () => {
     boletasRepository.findOne.mockResolvedValue(boleta());
 
     await expect(service.remove(boletaId)).resolves.toEqual({
-      message: `Boleta #${boletaId} deleted successfully`,
+      message: 'La boleta se eliminó correctamente',
     });
   });
 

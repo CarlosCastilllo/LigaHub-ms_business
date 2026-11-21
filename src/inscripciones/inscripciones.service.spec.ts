@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Torneo } from '../torneos/entities/torneo.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
@@ -12,11 +12,12 @@ import {
 import { InscripcionesRepository } from './repositories/inscripciones.repository';
 import { InscripcionesService } from './inscripciones.service';
 import { InscripcionMapper } from './mappers/inscripcion.mapper';
+import { EstadoTorneo } from '../torneos/entities/torneo.entity';
 
 describe('InscripcionesService', () => {
   let service: InscripcionesService;
   let inscripcionesRepository: jest.Mocked<
-    Pick<Repository<Inscripcion>, 'save' | 'find' | 'findOne' | 'remove'>
+    Pick<Repository<Inscripcion>, 'save' | 'find' | 'findOne' | 'remove' | 'count'>
   >;
   let torneosRepository: jest.Mocked<Pick<Repository<Torneo>, 'findOne'>>;
   let equiposRepository: jest.Mocked<Pick<Repository<Equipo>, 'findOne'>>;
@@ -28,11 +29,31 @@ describe('InscripcionesService', () => {
   const equipoId = '550e8400-e29b-41d4-a716-446655440010';
 
   function torneo(): Torneo {
-    return Object.assign(new Torneo(), { id: torneoId });
+    return Object.assign(new Torneo(), {
+      id: torneoId,
+      nombre: 'Copa Universitaria',
+      estado: EstadoTorneo.PENDIENTE,
+      activo: true,
+      max_equipos: 16,
+      deporte_id: '550e8400-e29b-41d4-a716-446655440020',
+      deporte: {
+        id: '550e8400-e29b-41d4-a716-446655440020',
+      },
+    });
   }
 
   function equipo(): Equipo {
-    return Object.assign(new Equipo(), { id: equipoId, nombre: 'Tigres' });
+    return Object.assign(new Equipo(), {
+      id: equipoId,
+      nombre: 'Tigres',
+      activo: true,
+      equipos_deportes: [
+        {
+          deporte_id: '550e8400-e29b-41d4-a716-446655440020',
+          deporte: { id: '550e8400-e29b-41d4-a716-446655440020' },
+        },
+      ],
+    });
   }
 
   function inscripcion(): Inscripcion {
@@ -53,7 +74,10 @@ describe('InscripcionesService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
+      count: jest.fn(),
     };
+    inscripcionesRepository.count.mockResolvedValue(0);
+    inscripcionesRepository.findOne.mockResolvedValue(null);
     torneosRepository = { findOne: jest.fn() };
     equiposRepository = { findOne: jest.fn() };
     reportsRepository = { countByTorneo: jest.fn() };
@@ -82,9 +106,11 @@ describe('InscripcionesService', () => {
     );
     expect(torneosRepository.findOne).toHaveBeenCalledWith({
       where: { id: torneoId },
+      relations: { deporte: true },
     });
     expect(equiposRepository.findOne).toHaveBeenCalledWith({
       where: { id: equipoId },
+      relations: { equipos_deportes: { deporte: true } },
     });
     expect(inscripcionesRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ torneo: expect.objectContaining({ id: torneoId }) }),
@@ -129,6 +155,7 @@ describe('InscripcionesService', () => {
       InscripcionMapper.toResponseDto(item),
     ]);
     expect(inscripcionesRepository.find).toHaveBeenCalledWith({
+      where: undefined,
       relations: { torneo: true, equipo: true },
     });
   });
@@ -137,6 +164,13 @@ describe('InscripcionesService', () => {
     const item = inscripcion();
     const otherTorneo = Object.assign(new Torneo(), {
       id: '550e8400-e29b-41d4-a716-446655440099',
+      estado: EstadoTorneo.PENDIENTE,
+      activo: true,
+      max_equipos: 16,
+      deporte_id: '550e8400-e29b-41d4-a716-446655440020',
+      deporte: {
+        id: '550e8400-e29b-41d4-a716-446655440020',
+      },
     });
     inscripcionesRepository.findOne.mockResolvedValue(item);
     torneosRepository.findOne.mockResolvedValue(otherTorneo);
@@ -180,5 +214,109 @@ describe('InscripcionesService', () => {
     await expect(
       service.findOne('550e8400-e29b-41d4-a716-446655440001'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects duplicate team inscription in the same tournament', async () => {
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    equiposRepository.findOne.mockResolvedValue(equipo());
+    inscripcionesRepository.findOne.mockResolvedValue(inscripcion());
+
+    await expect(
+      service.create({
+        fecha_inscripcion: '2026-03-01',
+        estado: EstadoInscripcion.PENDIENTE,
+        equipo_id: equipoId,
+        torneo_id: torneoId,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(inscripcionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects a team that is not associated with the tournament sport', async () => {
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    equiposRepository.findOne.mockResolvedValue(
+      Object.assign(equipo(), {
+        equipos_deportes: [],
+      }),
+    );
+
+    await expect(
+      service.create({
+        fecha_inscripcion: '2026-03-01',
+        estado: EstadoInscripcion.PENDIENTE,
+        equipo_id: equipoId,
+        torneo_id: torneoId,
+      }),
+    ).rejects.toThrow(
+      'El equipo "Tigres" no está asociado al deporte del torneo "Copa Universitaria"',
+    );
+    expect(inscripcionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects inscriptions when the tournament is in progress', async () => {
+    torneosRepository.findOne.mockResolvedValue(
+      Object.assign(torneo(), { estado: EstadoTorneo.EN_CURSO }),
+    );
+    equiposRepository.findOne.mockResolvedValue(equipo());
+
+    await expect(
+      service.create({
+        fecha_inscripcion: '2026-03-01',
+        estado: EstadoInscripcion.PENDIENTE,
+        equipo_id: equipoId,
+        torneo_id: torneoId,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(inscripcionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects inscriptions when the tournament reached its team capacity', async () => {
+    torneosRepository.findOne.mockResolvedValue(
+      Object.assign(torneo(), { max_equipos: 2 }),
+    );
+    equiposRepository.findOne.mockResolvedValue(equipo());
+    inscripcionesRepository.count.mockResolvedValue(2);
+
+    await expect(
+      service.create({
+        fecha_inscripcion: '2026-03-01',
+        estado: EstadoInscripcion.PENDIENTE,
+        equipo_id: equipoId,
+        torneo_id: torneoId,
+      }),
+    ).rejects.toThrow(
+      'El torneo "Copa Universitaria" alcanzó la cantidad máxima de equipos',
+    );
+    expect(inscripcionesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('filters inscriptions by tournament and team', async () => {
+    torneosRepository.findOne.mockResolvedValue(torneo());
+    equiposRepository.findOne.mockResolvedValue(equipo());
+    inscripcionesRepository.find.mockResolvedValue([inscripcion()]);
+
+    await expect(
+      service.findAll({ torneo_id: torneoId, equipo_id: equipoId }),
+    ).resolves.toHaveLength(1);
+    expect(inscripcionesRepository.find).toHaveBeenCalledWith({
+      where: {
+        torneo: { id: torneoId },
+        equipo: { id: equipoId },
+      },
+      relations: { torneo: true, equipo: true },
+    });
+  });
+
+  it('blocks withdrawing an inscription after the tournament starts', async () => {
+    const item = inscripcion();
+    inscripcionesRepository.findOne.mockResolvedValue(item);
+    torneosRepository.findOne.mockResolvedValue(
+      Object.assign(torneo(), { estado: EstadoTorneo.EN_CURSO }),
+    );
+
+    await expect(service.remove(item.id)).rejects.toThrow(
+      'El torneo "Copa Universitaria" no acepta inscripciones ni retiros',
+    );
+    expect(inscripcionesRepository.remove).not.toHaveBeenCalled();
   });
 });

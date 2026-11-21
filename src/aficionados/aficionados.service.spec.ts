@@ -141,7 +141,7 @@ describe('AficionadosService', () => {
     mockTabla(aficionado());
 
     await expect(service.remove(aficionadoId)).resolves.toEqual({
-      message: `Aficionado #${aficionadoId} deleted successfully`,
+      message: 'Se eliminó el aficionado "Ana Gomez" correctamente',
     });
   });
 

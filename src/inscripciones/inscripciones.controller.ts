@@ -7,9 +7,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { UpdateInscripcionDto } from './dto/update-inscripcion.dto';
+import { FindInscripcionesQueryDto } from './dto/find-inscripciones-query.dto';
 import { InscripcionesService } from './inscripciones.service';
 
 @Controller('inscripciones')
@@ -27,8 +29,8 @@ export class InscripcionesController {
   }
 
   @Get()
-  findAll() {
-    return this.inscripcionesService.findAll();
+  findAll(@Query() query: FindInscripcionesQueryDto) {
+    return this.inscripcionesService.findAll(query);
   }
 
   @Get(':id')

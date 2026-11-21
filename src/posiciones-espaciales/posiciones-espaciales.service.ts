@@ -83,7 +83,7 @@ export class PosicionesEspacialesService {
   async remove(id: string): Promise<{ message: string }> {
     const posicion = await this.findPosicion(id);
     await this.posicionesRepository.remove(posicion);
-    return { message: `PosicionEspacial #${id} deleted successfully` };
+    return { message: 'La posición espacial se eliminó correctamente' };
   }
 
   private validateSubject(
@@ -104,7 +104,7 @@ export class PosicionesEspacialesService {
     });
     if (!posicion) {
       throw new NotFoundException(
-        `PosicionEspacial with id ${id} not found`,
+        'La posición espacial no fue encontrada',
       );
     }
     return posicion;
@@ -113,7 +113,7 @@ export class PosicionesEspacialesService {
   private async findJugador(id: string): Promise<Jugador> {
     const jugador = await this.jugadoresRepository.findOne({ where: { id } });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
     return jugador;
   }
@@ -121,7 +121,7 @@ export class PosicionesEspacialesService {
   private async findPelota(id: string): Promise<Pelota> {
     const pelota = await this.pelotasRepository.findOne({ where: { id } });
     if (!pelota) {
-      throw new NotFoundException(`Pelota with id ${id} not found`);
+      throw new NotFoundException('La pelota no fue encontrada');
     }
     return pelota;
   }

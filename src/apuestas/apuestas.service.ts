@@ -93,7 +93,7 @@ export class ApuestasService {
   async remove(id: string): Promise<{ message: string }> {
     const apuesta = await this.findApuesta(id);
     await this.apuestasRepository.remove(apuesta);
-    return { message: `Apuesta #${id} deleted successfully` };
+    return { message: 'La apuesta se eliminó correctamente' };
   }
 
   // El metodo de pago debe estar registrado por el mismo aficionado que apuesta.
@@ -104,7 +104,7 @@ export class ApuestasService {
     const duenoId = metodo.aficionado?.id ?? metodo.aficionado_id;
     if (duenoId !== aficionadoId) {
       throw new BadRequestException(
-        `MetodoPagoAficionado ${metodo.id} does not belong to aficionado ${aficionadoId}`,
+        `El método de pago seleccionado no pertenece al aficionado solicitado`,
       );
     }
   }
@@ -115,7 +115,7 @@ export class ApuestasService {
       relations: APUESTA_RELATIONS,
     });
     if (!apuesta) {
-      throw new NotFoundException(`Apuesta with id ${id} not found`);
+      throw new NotFoundException('La apuesta no fue encontrada');
     }
     return apuesta;
   }
@@ -125,7 +125,7 @@ export class ApuestasService {
       where: { id },
     });
     if (!aficionado) {
-      throw new NotFoundException(`Aficionado with id ${id} not found`);
+      throw new NotFoundException('El aficionado no fue encontrado');
     }
     return aficionado;
   }
@@ -134,11 +134,11 @@ export class ApuestasService {
   private async findPartidoProgramado(id: string): Promise<Partido> {
     const partido = await this.partidosRepository.findOne({ where: { id } });
     if (!partido) {
-      throw new NotFoundException(`Partido with id ${id} not found`);
+      throw new NotFoundException('El partido no fue encontrado');
     }
     if (partido.estado !== EstadoPartido.PROGRAMADO) {
       throw new BadRequestException(
-        `Partido ${id} is ${partido.estado}; bets are only allowed on PROGRAMADO partidos`,
+        'Las apuestas solo se pueden registrar en partidos programados',
       );
     }
     return partido;
@@ -151,12 +151,12 @@ export class ApuestasService {
     });
     if (!metodo) {
       throw new NotFoundException(
-        `MetodoPagoAficionado with id ${id} not found`,
+        'El método de pago no fue encontrado',
       );
     }
     if (metodo.estado !== EstadoMetodoPagoAficionado.ACTIVO) {
       throw new BadRequestException(
-        `MetodoPagoAficionado ${id} is ${metodo.estado}`,
+        'El método de pago seleccionado no está activo',
       );
     }
     return metodo;

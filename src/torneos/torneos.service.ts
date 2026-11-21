@@ -76,7 +76,7 @@ export class TorneosService {
       },
     });
     if (!torneo) {
-      throw new NotFoundException(`Torneo with id ${id} not found`);
+      throw new NotFoundException('El torneo no fue encontrado');
     }
     if (
       torneo.fases?.length ||
@@ -84,17 +84,17 @@ export class TorneosService {
       torneo.escenarios_torneo?.length
     ) {
       throw new ConflictException(
-        `Torneo #${id} has fases, partidos, inscripciones or escenarios; delete them first or deactivate it instead`,
+        `El torneo "${torneo.nombre}" tiene fases, partidos, inscripciones o escenarios. Elimine esas relaciones o desactívelo`,
       );
     }
     await this.torneosRepository.remove(torneo);
-    return { message: `Torneo #${id} deleted successfully` };
+    return { message: `Se eliminó el torneo "${torneo.nombre}" correctamente` };
   }
 
   private async findTorneo(id: string): Promise<Torneo> {
     const torneo = await this.torneosRepository.findOne({ where: { id } });
     if (!torneo) {
-      throw new NotFoundException(`Torneo with id ${id} not found`);
+      throw new NotFoundException('El torneo no fue encontrado');
     }
     return torneo;
   }
@@ -102,7 +102,7 @@ export class TorneosService {
   private async findDeporte(id: string): Promise<Deporte> {
     const deporte = await this.deportesRepository.findOne({ where: { id } });
     if (!deporte) {
-      throw new NotFoundException(`Deporte with id ${id} not found`);
+      throw new NotFoundException('El deporte no fue encontrado');
     }
     return deporte;
   }

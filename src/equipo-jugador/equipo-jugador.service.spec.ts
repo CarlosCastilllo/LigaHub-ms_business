@@ -117,7 +117,7 @@ describe('EquipoJugadorService', () => {
       equiposRepository.findOne.mockResolvedValue(equipo(false));
 
       await expect(service.create(dto)).rejects.toThrow(
-        `Equipo ${equipoId} is not active`,
+        'El equipo "Tigres" no está activo',
       );
       expect(relacionesRepository.save).not.toHaveBeenCalled();
     });
@@ -126,7 +126,7 @@ describe('EquipoJugadorService', () => {
       jugadoresRepository.findOne.mockResolvedValue(jugador(false));
 
       await expect(service.create(dto)).rejects.toThrow(
-        `Jugador ${jugadorId} is not active`,
+        'El jugador seleccionado no está activo',
       );
       expect(relacionesRepository.save).not.toHaveBeenCalled();
     });

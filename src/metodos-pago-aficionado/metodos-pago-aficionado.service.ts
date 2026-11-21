@@ -78,11 +78,11 @@ export class MetodosPagoAficionadoService {
     // La FK de apuestas hacia metodos_pago_aficionado usa NO ACTION.
     if (registro.apuestas?.length) {
       throw new ConflictException(
-        `MetodoPagoAficionado #${id} has apuestas; set it INACTIVO instead`,
+        `El método de pago registrado tiene apuestas asociadas. Cámbielo a INACTIVO en lugar de eliminarlo`,
       );
     }
     await this.mpaRepository.remove(registro);
-    return { message: `MetodoPagoAficionado #${id} deleted successfully` };
+    return { message: 'El método de pago del aficionado se eliminó correctamente' };
   }
 
   // Un aficionado solo puede tener un metodo de pago predeterminado.
@@ -106,7 +106,7 @@ export class MetodosPagoAficionadoService {
     });
     if (!registro) {
       throw new NotFoundException(
-        `MetodoPagoAficionado with id ${id} not found`,
+        'El método de pago del aficionado no fue encontrado',
       );
     }
     return registro;
@@ -117,7 +117,7 @@ export class MetodosPagoAficionadoService {
       where: { id },
     });
     if (!aficionado) {
-      throw new NotFoundException(`Aficionado with id ${id} not found`);
+      throw new NotFoundException('El aficionado no fue encontrado');
     }
     return aficionado;
   }
@@ -125,10 +125,12 @@ export class MetodosPagoAficionadoService {
   private async findMetodoPagoActivo(id: string): Promise<MetodoPago> {
     const metodo = await this.metodosPagoRepository.findOne({ where: { id } });
     if (!metodo) {
-      throw new NotFoundException(`MetodoPago with id ${id} not found`);
+      throw new NotFoundException('El método de pago no fue encontrado');
     }
     if (!metodo.activo) {
-      throw new BadRequestException(`MetodoPago ${id} is not active`);
+      throw new BadRequestException(
+        `El método de pago "${metodo.nombre}" no está activo`,
+      );
     }
     return metodo;
   }

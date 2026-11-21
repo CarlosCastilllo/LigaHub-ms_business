@@ -259,7 +259,7 @@ describe('PartidosService', () => {
     partidosRepository.findOne.mockResolvedValue(partido());
 
     await expect(service.remove(partidoId)).resolves.toEqual({
-      message: `Partido #${partidoId} deleted successfully`,
+      message: 'El partido se eliminó correctamente',
     });
     expect(partidosRepository.remove).toHaveBeenCalledTimes(1);
   });

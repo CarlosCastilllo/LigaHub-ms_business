@@ -15,7 +15,8 @@ import { UpdateEquipoDeporteDto } from './dto/update-equipo-deporte.dto';
 import { EquipoDeporte } from './entities/equipo-deporte.entity';
 import { EquipoDeporteMapper } from './mappers/equipo-deporte.mapper';
 
-const DUPLICATE_ASSOCIATION_MESSAGE = 'This deporte is already assigned to equipo';
+const DUPLICATE_ASSOCIATION_MESSAGE =
+  'El deporte ya está asociado al equipo';
 
 @Injectable()
 export class EquiposDeportesService {
@@ -93,7 +94,7 @@ export class EquiposDeportesService {
   async remove(id: string): Promise<{ message: string }> {
     const relacion = await this.findRelacion(id);
     await this.relacionesRepository.remove(relacion);
-    return { message: `EquipoDeporte #${id} deleted successfully` };
+    return { message: 'La asociación entre el equipo y el deporte se retiró correctamente' };
   }
 
   private async findRelacion(id: string): Promise<EquipoDeporte> {
@@ -102,7 +103,7 @@ export class EquiposDeportesService {
       relations: { equipo: true, deporte: true },
     });
     if (!relacion) {
-      throw new NotFoundException(`EquipoDeporte with id ${id} not found`);
+      throw new NotFoundException('La asociación entre el equipo y el deporte no fue encontrada');
     }
     return relacion;
   }
@@ -110,7 +111,7 @@ export class EquiposDeportesService {
   private async findEquipo(id: string): Promise<Equipo> {
     const equipo = await this.equiposRepository.findOne({ where: { id } });
     if (!equipo) {
-      throw new NotFoundException(`Equipo with id ${id} not found`);
+      throw new NotFoundException('El equipo no fue encontrado');
     }
     return equipo;
   }
@@ -118,7 +119,7 @@ export class EquiposDeportesService {
   private async findDeporte(id: string): Promise<Deporte> {
     const deporte = await this.deportesRepository.findOne({ where: { id } });
     if (!deporte) {
-      throw new NotFoundException(`Deporte with id ${id} not found`);
+      throw new NotFoundException('El deporte no fue encontrado');
     }
     return deporte;
   }

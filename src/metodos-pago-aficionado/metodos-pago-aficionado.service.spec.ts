@@ -189,7 +189,7 @@ describe('MetodosPagoAficionadoService', () => {
     mpaRepository.findOne.mockResolvedValue(registro());
 
     await expect(service.remove(mpaId)).resolves.toEqual({
-      message: `MetodoPagoAficionado #${mpaId} deleted successfully`,
+      message: 'El método de pago del aficionado se eliminó correctamente',
     });
   });
 

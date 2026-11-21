@@ -4,6 +4,7 @@ import {
   Column,
   Entity,
   JoinColumn,
+  Index,
   ManyToOne,
   PrimaryGeneratedColumn,
   RelationId,
@@ -17,6 +18,9 @@ export enum EstadoInscripcion {
 }
 
 @Entity('inscripciones')
+@Index('UQ_inscripciones_torneo_equipo', ['torneo', 'equipo'], {
+  unique: true,
+})
 export class Inscripcion {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

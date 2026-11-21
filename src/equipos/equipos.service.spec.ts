@@ -90,7 +90,7 @@ describe('EquiposService', () => {
 
     await expect(service.remove(equipoId)).rejects.toThrow(
       new ConflictException(
-        `Equipo #${equipoId} has jugadores, inscripciones, partidos, aficionado preferences or deportes; delete or reassign them first, or deactivate it instead`,
+        'El equipo "Tigres" tiene jugadores, inscripciones, partidos, aficionados o deportes asociados. Elimine o reasigne esas relaciones o desactívelo',
       ),
     );
     expect(repository.remove).not.toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe('EquiposService', () => {
     repository.findOne.mockResolvedValue(equipo());
 
     await expect(service.remove(equipoId)).resolves.toEqual({
-      message: `Equipo #${equipoId} deleted successfully`,
+      message: 'Se eliminó el equipo "Tigres" correctamente',
     });
     expect(repository.remove).toHaveBeenCalledTimes(1);
   });

@@ -58,7 +58,7 @@ export class PelotasService {
   async remove(id: string): Promise<{ message: string }> {
     const pelota = await this.findPelota(id);
     await this.pelotasRepository.remove(pelota);
-    return { message: `Pelota #${id} deleted successfully` };
+    return { message: `Se eliminó la pelota "${pelota.marca} ${pelota.modelo}" correctamente` };
   }
 
   private async findPelota(id: string): Promise<Pelota> {
@@ -67,7 +67,7 @@ export class PelotasService {
       relations: { partido: true },
     });
     if (!pelota) {
-      throw new NotFoundException(`Pelota with id ${id} not found`);
+      throw new NotFoundException('La pelota no fue encontrada');
     }
     return pelota;
   }
@@ -83,11 +83,11 @@ export class PelotasService {
       relations: { pelota: true },
     });
     if (!partido) {
-      throw new NotFoundException(`Partido with id ${partidoId} not found`);
+      throw new NotFoundException('El partido no fue encontrado');
     }
     if (partido.pelota && partido.pelota.id !== pelotaActualId) {
       throw new ConflictException(
-        `Partido with id ${partidoId} already has a pelota`,
+        'El partido seleccionado ya tiene una pelota asignada',
       );
     }
     return partido;

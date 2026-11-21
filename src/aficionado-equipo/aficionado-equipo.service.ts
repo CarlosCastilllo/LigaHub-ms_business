@@ -73,7 +73,7 @@ export class AficionadoEquipoService {
   async remove(id: string): Promise<{ message: string }> {
     const relacion = await this.findRelacion(id);
     await this.relacionesRepository.remove(relacion);
-    return { message: `AficionadoEquipo #${id} deleted successfully` };
+    return { message: 'La preferencia del aficionado por el equipo se eliminó correctamente' };
   }
 
   private async findRelacion(id: string): Promise<AficionadoEquipo> {
@@ -83,7 +83,7 @@ export class AficionadoEquipoService {
     });
     if (!relacion) {
       throw new NotFoundException(
-        `AficionadoEquipo with id ${id} not found`,
+        'La preferencia del aficionado por el equipo no fue encontrada',
       );
     }
     return relacion;
@@ -94,7 +94,7 @@ export class AficionadoEquipoService {
       where: { id },
     });
     if (!aficionado) {
-      throw new NotFoundException(`Aficionado with id ${id} not found`);
+      throw new NotFoundException('El aficionado no fue encontrado');
     }
     return aficionado;
   }
@@ -102,7 +102,7 @@ export class AficionadoEquipoService {
   private async findEquipo(id: string): Promise<Equipo> {
     const equipo = await this.equiposRepository.findOne({ where: { id } });
     if (!equipo) {
-      throw new NotFoundException(`Equipo with id ${id} not found`);
+      throw new NotFoundException('El equipo no fue encontrado');
     }
     return equipo;
   }
@@ -120,7 +120,7 @@ export class AficionadoEquipoService {
     });
     if (existing && existing.id !== currentId) {
       throw new ConflictException(
-        'This aficionado already has this equipo as a preference',
+        'El aficionado ya tiene este equipo como preferencia',
       );
     }
   }

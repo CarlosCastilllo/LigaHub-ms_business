@@ -61,26 +61,26 @@ export class AficionadosService {
     // Las FKs de boletas, apuestas y metodos de pago usan ON DELETE NO ACTION.
     if (aficionado.metodos_pago_aficionado?.length) {
       throw new ConflictException(
-        `Aficionado #${id} has registered metodos de pago; delete them first`,
+        `El aficionado "${aficionado.nombre}" tiene métodos de pago registrados. Elimine esos registros primero`,
       );
     }
     if (aficionado.boletas?.length) {
       throw new ConflictException(
-        `Aficionado #${id} has boletas; delete them first`,
+        `El aficionado "${aficionado.nombre}" tiene boletas asociadas. Elimine esas boletas primero`,
       );
     }
     if (aficionado.apuestas?.length) {
       throw new ConflictException(
-        `Aficionado #${id} has apuestas; delete them first`,
+        `El aficionado "${aficionado.nombre}" tiene apuestas asociadas. Elimine esas apuestas primero`,
       );
     }
     if (aficionado.equipos_preferidos?.length) {
       throw new ConflictException(
-        `Aficionado #${id} has equipo preferences; delete them first`,
+        `El aficionado "${aficionado.nombre}" tiene preferencias de equipos asociadas. Elimine esas preferencias primero`,
       );
     }
     await this.aficionadosRepository.remove(aficionado);
-    return { message: `Aficionado #${id} deleted successfully` };
+    return { message: `Se eliminó el aficionado "${aficionado.nombre}" correctamente` };
   }
 
   // documento y email son unicos: se responde 409 en lugar del error de MySQL.
@@ -95,7 +95,7 @@ export class AficionadosService {
       });
       if (existente && existente.id !== idActual) {
         throw new ConflictException(
-          `An aficionado with documento ${documento} already exists`,
+          `Ya existe un aficionado con el documento ${documento}`,
         );
       }
     }
@@ -105,7 +105,7 @@ export class AficionadosService {
       });
       if (existente && existente.id !== idActual) {
         throw new ConflictException(
-          `An aficionado with email ${email} already exists`,
+          `Ya existe un aficionado con el correo ${email}`,
         );
       }
     }
@@ -117,7 +117,7 @@ export class AficionadosService {
       relations: AFICIONADO_RELATIONS,
     });
     if (!aficionado) {
-      throw new NotFoundException(`Aficionado with id ${id} not found`);
+      throw new NotFoundException('El aficionado no fue encontrado');
     }
     return aficionado;
   }

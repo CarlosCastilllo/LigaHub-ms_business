@@ -169,7 +169,7 @@ describe('HabilidadesService', () => {
     repository.findOne.mockResolvedValue(habilidad());
 
     await expect(service.remove(habilidadId)).resolves.toEqual({
-      message: `Habilidad #${habilidadId} deleted successfully`,
+      message: 'Se eliminó la habilidad "Velocidad" correctamente',
     });
     expect(repository.remove).toHaveBeenCalledTimes(1);
   });

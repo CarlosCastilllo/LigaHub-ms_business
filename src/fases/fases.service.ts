@@ -63,7 +63,7 @@ export class FasesService {
       relations: { torneo: true },
     });
     if (!fase) {
-      throw new NotFoundException(`Fase with id ${id} not found`);
+      throw new NotFoundException('La fase no fue encontrada');
     }
     return this.faseMapper.toResponseDto(fase);
   }
@@ -74,7 +74,7 @@ export class FasesService {
       relations: { torneo: true },
     });
     if (!fase) {
-      throw new NotFoundException(`Fase with id ${id} not found`);
+      throw new NotFoundException('La fase no fue encontrada');
     }
 
     if (dto.torneo_id !== undefined) {
@@ -112,22 +112,22 @@ export class FasesService {
       relations: { partidos: true },
     });
     if (!fase) {
-      throw new NotFoundException(`Fase with id ${id} not found`);
+      throw new NotFoundException('La fase no fue encontrada');
     }
     if (fase.partidos?.length) {
       throw new ConflictException(
-        `Fase #${id} has partidos; delete or reassign them first`,
+        `La fase número ${fase.numero_orden} del torneo "${fase.torneo?.nombre ?? 'seleccionado'}" tiene partidos. Elimine o reasigne esos partidos primero`,
       );
     }
 
     await this.fasesRepository.remove(fase);
-    return { message: `Fase #${id} deleted successfully` };
+    return { message: `Se eliminó la fase número ${fase.numero_orden} correctamente` };
   }
 
   private async findTorneo(id: string): Promise<Torneo> {
     const torneo = await this.torneosRepository.findOne({ where: { id } });
     if (!torneo) {
-      throw new NotFoundException(`Torneo with id ${id} not found`);
+      throw new NotFoundException('El torneo no fue encontrado');
     }
     return torneo;
   }

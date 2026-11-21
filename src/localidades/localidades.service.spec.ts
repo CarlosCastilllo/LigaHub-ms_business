@@ -135,7 +135,7 @@ describe('LocalidadesService', () => {
     localidadesRepository.findOne.mockResolvedValue(localidad());
 
     await expect(service.remove(localidadId)).resolves.toEqual({
-      message: `Localidad #${localidadId} deleted successfully`,
+      message: 'Se eliminó la localidad "Oriental" correctamente',
     });
     expect(localidadesRepository.remove).toHaveBeenCalledTimes(1);
   });

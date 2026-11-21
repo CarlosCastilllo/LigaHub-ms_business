@@ -105,7 +105,7 @@ describe('MetodosPagoService', () => {
     mockTabla(metodoPago());
 
     await expect(service.remove(metodoId)).resolves.toEqual({
-      message: `MetodoPago #${metodoId} deleted successfully`,
+      message: 'Se eliminó el método de pago "Nequi" correctamente',
     });
   });
 

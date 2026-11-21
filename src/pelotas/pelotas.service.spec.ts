@@ -182,7 +182,7 @@ describe('PelotasService', () => {
     pelotasRepository.findOne.mockResolvedValue(pelota());
 
     await expect(service.remove(pelotaId)).resolves.toEqual({
-      message: `Pelota #${pelotaId} deleted successfully`,
+      message: 'Se eliminó la pelota "Golty Profesional" correctamente',
     });
     expect(pelotasRepository.remove).toHaveBeenCalledTimes(1);
   });

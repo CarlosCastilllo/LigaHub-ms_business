@@ -210,7 +210,7 @@ describe('FasesService', () => {
 
     expect(updated.modalidad).toBe(ModalidadFinal.PARTIDO_UNICO);
     expect(repository.remove).toHaveBeenCalledWith(phase);
-    expect(removed.message).toContain(phase.id);
+    expect(removed.message).toContain('fase número');
     expect(repository.findOne).toHaveBeenLastCalledWith({
       where: { id: phase.id },
       relations: { partidos: true },

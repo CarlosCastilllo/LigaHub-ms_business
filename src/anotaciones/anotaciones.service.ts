@@ -70,7 +70,7 @@ export class AnotacionesService {
   async remove(id: string): Promise<{ message: string }> {
     const anotacion = await this.findAnotacion(id);
     await this.anotacionesRepository.remove(anotacion);
-    return { message: `Anotacion #${id} deleted successfully` };
+    return { message: 'La anotación se eliminó correctamente' };
   }
 
   private async findAnotacion(id: string): Promise<Anotacion> {
@@ -79,7 +79,7 @@ export class AnotacionesService {
       relations: { partido: true, jugador: true },
     });
     if (!anotacion) {
-      throw new NotFoundException(`Anotacion with id ${id} not found`);
+      throw new NotFoundException('La anotación no fue encontrada');
     }
     return anotacion;
   }
@@ -87,11 +87,11 @@ export class AnotacionesService {
   private async findPartidoJugado(id: string): Promise<Partido> {
     const partido = await this.partidosRepository.findOne({ where: { id } });
     if (!partido) {
-      throw new NotFoundException(`Partido with id ${id} not found`);
+      throw new NotFoundException('El partido no fue encontrado');
     }
     if (!ESTADOS_CON_ANOTACIONES.includes(partido.estado)) {
       throw new BadRequestException(
-        `Partido ${id} is ${partido.estado}; anotaciones are only allowed on EN_JUEGO or FINALIZADO partidos`,
+        'Las anotaciones solo se pueden registrar en partidos en juego o finalizados',
       );
     }
     return partido;
@@ -100,7 +100,7 @@ export class AnotacionesService {
   private async findJugador(id: string): Promise<Jugador> {
     const jugador = await this.jugadoresRepository.findOne({ where: { id } });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
     return jugador;
   }

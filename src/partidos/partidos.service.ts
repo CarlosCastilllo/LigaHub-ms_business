@@ -99,21 +99,21 @@ export class PartidosService {
     // La FK de la pelota (1:1) tambien es NO ACTION.
     if (partido.pelota) {
       throw new ConflictException(
-        `Partido #${id} has a pelota assigned; unassign it first`,
+        'El partido tiene una pelota asignada. Desasigne la pelota primero',
       );
     }
     if (partido.boletas?.length) {
       throw new ConflictException(
-        `Partido #${id} has boletas; delete them first`,
+        'El partido tiene boletas asociadas. Elimine las boletas primero',
       );
     }
     if (partido.apuestas?.length) {
       throw new ConflictException(
-        `Partido #${id} has apuestas; delete them first`,
+        'El partido tiene apuestas asociadas. Elimine las apuestas primero',
       );
     }
     await this.partidosRepository.remove(partido);
-    return { message: `Partido #${id} deleted successfully` };
+    return { message: 'El partido se eliminó correctamente' };
   }
 
   private assertEquiposDistintos(localId: string, visitanteId: string): void {
@@ -130,7 +130,7 @@ export class PartidosService {
       relations: PARTIDO_RELATIONS,
     });
     if (!partido) {
-      throw new NotFoundException(`Partido with id ${id} not found`);
+      throw new NotFoundException('El partido no fue encontrado');
     }
     return partido;
   }
@@ -140,7 +140,7 @@ export class PartidosService {
       where: { id },
     });
     if (!escenario) {
-      throw new NotFoundException(`Escenario with id ${id} not found`);
+      throw new NotFoundException('El escenario no fue encontrado');
     }
     return escenario;
   }
@@ -148,7 +148,7 @@ export class PartidosService {
   private async findEquipo(id: string): Promise<Equipo> {
     const equipo = await this.equiposRepository.findOne({ where: { id } });
     if (!equipo) {
-      throw new NotFoundException(`Equipo with id ${id} not found`);
+      throw new NotFoundException('El equipo no fue encontrado');
     }
     return equipo;
   }
@@ -156,7 +156,7 @@ export class PartidosService {
   private async findFase(id: string): Promise<Fase> {
     const fase = await this.fasesRepository.findOne({ where: { id } });
     if (!fase) {
-      throw new NotFoundException(`Fase with id ${id} not found`);
+      throw new NotFoundException('La fase no fue encontrada');
     }
     return fase;
   }

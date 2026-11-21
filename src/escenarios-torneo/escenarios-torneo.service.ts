@@ -64,7 +64,7 @@ export class EscenariosTorneoService {
   async remove(id: string): Promise<{ message: string }> {
     const asignacion = await this.findAsignacion(id);
     await this.escenariosTorneoRepository.remove(asignacion);
-    return { message: `EscenarioTorneo #${id} deleted successfully` };
+    return { message: 'La asignación del escenario al torneo se eliminó correctamente' };
   }
 
   async getCountByTorneo(
@@ -85,7 +85,7 @@ export class EscenariosTorneoService {
     });
     if (!asignacion) {
       throw new NotFoundException(
-        `EscenarioTorneo with id ${id} not found`,
+        'La asignación del escenario al torneo no fue encontrada',
       );
     }
     return asignacion;
@@ -94,7 +94,7 @@ export class EscenariosTorneoService {
   private async findTorneo(id: string): Promise<Torneo> {
     const torneo = await this.torneosRepository.findOne({ where: { id } });
     if (!torneo) {
-      throw new NotFoundException(`Torneo with id ${id} not found`);
+      throw new NotFoundException('El torneo no fue encontrado');
     }
     return torneo;
   }
@@ -104,7 +104,7 @@ export class EscenariosTorneoService {
       where: { id },
     });
     if (!escenario) {
-      throw new NotFoundException(`Escenario with id ${id} not found`);
+      throw new NotFoundException('El escenario no fue encontrado');
     }
     return escenario;
   }

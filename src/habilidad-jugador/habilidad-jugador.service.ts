@@ -16,7 +16,7 @@ import { HabilidadJugador } from './entities/habilidad-jugador.entity';
 import { HabilidadJugadorMapper } from './mappers/habilidad-jugador.mapper';
 
 const DUPLICATE_ASSOCIATION_MESSAGE =
-  'This habilidad is already assigned to this jugador';
+  'Esta habilidad ya está asignada al jugador';
 
 @Injectable()
 export class HabilidadJugadorService {
@@ -83,7 +83,7 @@ export class HabilidadJugadorService {
   async remove(id: string): Promise<{ message: string }> {
     const relacion = await this.findRelacion(id);
     await this.relacionesRepository.remove(relacion);
-    return { message: `HabilidadJugador #${id} deleted successfully` };
+    return { message: 'La habilidad se retiró correctamente del jugador' };
   }
 
   private async guardar(
@@ -106,7 +106,7 @@ export class HabilidadJugadorService {
       relations: { habilidad: true, jugador: true },
     });
     if (!relacion) {
-      throw new NotFoundException(`HabilidadJugador with id ${id} not found`);
+      throw new NotFoundException('La relación entre la habilidad y el jugador no fue encontrada');
     }
     return relacion;
   }
@@ -116,7 +116,7 @@ export class HabilidadJugadorService {
       where: { id },
     });
     if (!habilidad) {
-      throw new NotFoundException(`Habilidad with id ${id} not found`);
+      throw new NotFoundException('La habilidad no fue encontrada');
     }
     return habilidad;
   }
@@ -124,7 +124,7 @@ export class HabilidadJugadorService {
   private async findJugador(id: string): Promise<Jugador> {
     const jugador = await this.jugadoresRepository.findOne({ where: { id } });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
     return jugador;
   }

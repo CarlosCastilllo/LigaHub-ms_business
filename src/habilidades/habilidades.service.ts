@@ -53,20 +53,20 @@ export class HabilidadesService {
       relations: { jugadores_habilidad: true },
     });
     if (!habilidad) {
-      throw new NotFoundException(`Habilidad with id ${id} not found`);
+      throw new NotFoundException('La habilidad no fue encontrada');
     }
     if (habilidad.jugadores_habilidad?.length) {
-      throw this.asignada(id);
+      throw this.asignada(habilidad.nombre);
     }
     try {
       await this.habilidadesRepository.remove(habilidad);
     } catch (error) {
       if (isReferencedRow(error)) {
-        throw this.asignada(id);
+        throw this.asignada(habilidad.nombre);
       }
       throw error;
     }
-    return { message: `Habilidad #${id} deleted successfully` };
+    return { message: `Se eliminó la habilidad "${habilidad.nombre}" correctamente` };
   }
 
   private async guardar(habilidad: Habilidad): Promise<HabilidadResponseDto> {
@@ -86,7 +86,7 @@ export class HabilidadesService {
       where: { id },
     });
     if (!habilidad) {
-      throw new NotFoundException(`Habilidad with id ${id} not found`);
+      throw new NotFoundException('La habilidad no fue encontrada');
     }
     return habilidad;
   }
@@ -105,13 +105,13 @@ export class HabilidadesService {
 
   private duplicada(nombre: string): ConflictException {
     return new ConflictException(
-      `A habilidad named "${nombre}" already exists`,
+      `Ya existe una habilidad llamada "${nombre}"`,
     );
   }
 
-  private asignada(id: string): ConflictException {
+  private asignada(nombre: string): ConflictException {
     return new ConflictException(
-      `Habilidad #${id} is assigned to jugadores; delete its associations first`,
+      `La habilidad "${nombre}" está asignada a jugadores. Elimine esas asociaciones primero`,
     );
   }
 }

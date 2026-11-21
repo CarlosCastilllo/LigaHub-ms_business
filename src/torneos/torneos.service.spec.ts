@@ -134,7 +134,7 @@ describe('TorneosService', () => {
 
     expect(updated.nombre).toBe('Torneo Clausura');
     expect(torneosRepository.remove).toHaveBeenCalledWith(existing);
-    expect(removed.message).toContain(existing.id);
+    expect(removed.message).toContain('Torneo Clausura');
   });
 
   it('deactivates a tournament without touching the other fields', async () => {

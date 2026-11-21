@@ -56,11 +56,11 @@ export class MetodosPagoService {
     // La FK desde metodos_pago_aficionado usa ON DELETE NO ACTION.
     if (metodo.metodos_pago_aficionado?.length) {
       throw new ConflictException(
-        `MetodoPago #${id} is registered by aficionados; deactivate it instead`,
+        `El método de pago "${metodo.nombre}" está registrado por aficionados. Desactívelo en lugar de eliminarlo`,
       );
     }
     await this.metodosPagoRepository.remove(metodo);
-    return { message: `MetodoPago #${id} deleted successfully` };
+    return { message: `Se eliminó el método de pago "${metodo.nombre}" correctamente` };
   }
 
   private async assertNombreUnico(
@@ -72,7 +72,7 @@ export class MetodosPagoService {
     });
     if (existente && existente.id !== idActual) {
       throw new ConflictException(
-        `A metodo de pago named ${nombre} already exists`,
+        `Ya existe un método de pago llamado "${nombre}"`,
       );
     }
   }
@@ -83,7 +83,7 @@ export class MetodosPagoService {
       relations: METODO_PAGO_RELATIONS,
     });
     if (!metodo) {
-      throw new NotFoundException(`MetodoPago with id ${id} not found`);
+      throw new NotFoundException('El método de pago no fue encontrado');
     }
     return metodo;
   }

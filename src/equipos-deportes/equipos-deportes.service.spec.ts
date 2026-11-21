@@ -92,7 +92,7 @@ describe('EquiposDeportesService', () => {
       service.update(relacionId, { deporte_id: deporteId }),
     ).resolves.toEqual(expect.objectContaining({ deporte_id: deporteId }));
     await expect(service.remove(relacionId)).resolves.toEqual({
-      message: `EquipoDeporte #${relacionId} deleted successfully`,
+      message: 'La asociación entre el equipo y el deporte se retiró correctamente',
     });
   });
 
@@ -161,7 +161,7 @@ describe('EquiposDeportesService', () => {
     await expect(
       service.create({ equipo_id: equipoId, deporte_id: deporteId }),
     ).rejects.toThrow(
-      new ConflictException('This deporte is already assigned to equipo'),
+      new ConflictException('El deporte ya está asociado al equipo'),
     );
   });
 

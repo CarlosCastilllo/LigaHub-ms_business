@@ -56,7 +56,7 @@ describe('JugadoresService', () => {
     repository.findOne.mockResolvedValue(jugador());
 
     await expect(service.create(dto, authorization)).rejects.toThrow(
-      new ConflictException('A jugador for user 7 already exists'),
+      new ConflictException('Ya existe un jugador asociado al usuario 7'),
     );
     expect(securityUsers.assertUserExists).not.toHaveBeenCalled();
     expect(repository.save).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe('JugadoresService', () => {
     );
 
     await expect(service.create(dto, authorization)).rejects.toThrow(
-      new ConflictException('A jugador for user 7 already exists'),
+      new ConflictException('Ya existe un jugador asociado al usuario 7'),
     );
   });
 
@@ -211,7 +211,7 @@ describe('JugadoresService', () => {
 
     await expect(service.remove(jugadorId)).rejects.toThrow(
       new ConflictException(
-        `Jugador #${jugadorId} has anotaciones, posiciones espaciales, equipo history or habilidades; delete or reassign them first, or deactivate it instead`,
+        'El jugador asociado al usuario 7 tiene anotaciones, posiciones espaciales, historial de equipos o habilidades. Elimine o reasigne esas relaciones o desactívelo',
       ),
     );
     expect(repository.remove).not.toHaveBeenCalled();
@@ -232,7 +232,7 @@ describe('JugadoresService', () => {
     repository.findOne.mockResolvedValue(jugador());
 
     await expect(service.remove(jugadorId)).resolves.toEqual({
-      message: `Jugador #${jugadorId} deleted successfully`,
+      message: 'Se eliminó el jugador asociado al usuario 7 correctamente',
     });
     expect(repository.remove).toHaveBeenCalledTimes(1);
   });

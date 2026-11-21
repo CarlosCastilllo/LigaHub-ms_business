@@ -321,7 +321,7 @@ describe('EscenariosService', () => {
     mockTabla(escenario());
 
     await expect(service.remove(escenarioId)).resolves.toEqual({
-      message: `Escenario #${escenarioId} deleted successfully`,
+      message: 'Se eliminó el escenario "Estadio Palogrande" correctamente',
     });
     expect(escenariosRepository.remove).toHaveBeenCalledTimes(1);
   });

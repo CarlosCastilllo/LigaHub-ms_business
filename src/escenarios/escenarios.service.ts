@@ -73,28 +73,28 @@ export class EscenariosService {
     // NO ACTION. Las localidades no bloquean: su FK es ON DELETE CASCADE.
     if (escenario.sub_escenarios?.length) {
       throw new ConflictException(
-        `Escenario #${id} has sub-escenarios; reassign or delete them first`,
+        `El escenario "${escenario.nombre}" tiene subescenarios asociados. Elimine o reasigne esos subescenarios primero`,
       );
     }
     if (escenario.escenarios_torneo?.length) {
       throw new ConflictException(
-        `Escenario #${id} is assigned to tournaments; delete those assignments first`,
+        `El escenario "${escenario.nombre}" está asignado a torneos. Elimine esas asignaciones primero`,
       );
     }
     if (escenario.partidos?.length) {
       throw new ConflictException(
-        `Escenario #${id} has partidos; reassign or delete them first`,
+        `El escenario "${escenario.nombre}" tiene partidos asociados. Reasigne o elimine esos partidos primero`,
       );
     }
     // Las localidades se borran en cascada, pero la FK de boletas hacia
     // localidades es NO ACTION y bloquearia ese borrado.
     if (escenario.localidades?.some((localidad) => localidad.boletas?.length)) {
       throw new ConflictException(
-        `Escenario #${id} has localidades with boletas; delete those boletas first`,
+        `El escenario "${escenario.nombre}" tiene localidades con boletas. Elimine esas boletas primero`,
       );
     }
     await this.escenariosRepository.remove(escenario);
-    return { message: `Escenario #${id} deleted successfully` };
+    return { message: `Se eliminó el escenario "${escenario.nombre}" correctamente` };
   }
 
   // Busca el padre propuesto y comprueba que no sea el propio escenario
@@ -104,7 +104,7 @@ export class EscenariosService {
     padreId: string,
   ): Promise<Escenario> {
     if (padreId === id) {
-      throw new BadRequestException('An escenario cannot be its own parent');
+      throw new BadRequestException('Un escenario no puede ser su propio escenario padre');
     }
     const padre = await this.findEscenarioSimple(padreId);
 
@@ -113,7 +113,7 @@ export class EscenariosService {
     while (ancestroId && !visitados.has(ancestroId)) {
       if (ancestroId === id) {
         throw new BadRequestException(
-          `Escenario ${padreId} is a descendant of ${id}; this would create a cycle`,
+          `El escenario padre "${padre.nombre}" es descendiente del escenario seleccionado. Esta relación crearía un ciclo`,
         );
       }
       visitados.add(ancestroId);
@@ -131,7 +131,7 @@ export class EscenariosService {
       relations: ESCENARIO_RELATIONS,
     });
     if (!escenario) {
-      throw new NotFoundException(`Escenario with id ${id} not found`);
+      throw new NotFoundException('El escenario no fue encontrado');
     }
     return escenario;
   }
@@ -141,7 +141,7 @@ export class EscenariosService {
       where: { id },
     });
     if (!escenario) {
-      throw new NotFoundException(`Escenario with id ${id} not found`);
+      throw new NotFoundException('El escenario no fue encontrado');
     }
     return escenario;
   }

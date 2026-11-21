@@ -185,7 +185,7 @@ describe('HabilidadJugadorService', () => {
     relacionesRepository.findOne.mockResolvedValue(relacion());
 
     await expect(service.remove(relacionId)).resolves.toEqual({
-      message: `HabilidadJugador #${relacionId} deleted successfully`,
+      message: 'La habilidad se retiró correctamente del jugador',
     });
     expect(relacionesRepository.remove).toHaveBeenCalledTimes(1);
   });

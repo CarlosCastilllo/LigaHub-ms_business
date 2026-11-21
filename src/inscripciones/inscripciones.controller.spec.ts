@@ -68,6 +68,9 @@ describe('InscripcionesController', () => {
       .send({ ...createPayload, equipo_id: 'bad-uuid' })
       .expect(400);
     await request(server).get('/inscripciones').expect(200);
+    await request(server)
+      .get(`/inscripciones?torneo_id=${torneoId}`)
+      .expect(200);
     await request(server).get(`/inscripciones/${inscripcionId}`).expect(200);
     await request(server)
       .patch(`/inscripciones/${inscripcionId}`)

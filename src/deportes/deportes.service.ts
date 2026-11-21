@@ -70,7 +70,7 @@ export class DeportesService {
       },
     });
     if (!deporte) {
-      throw new NotFoundException(`Deporte with id ${id} not found`);
+      throw new NotFoundException('El deporte no fue encontrado');
     }
     if (
       deporte.torneos?.length ||
@@ -78,11 +78,11 @@ export class DeportesService {
       deporte.deportes_hijos?.length
     ) {
       throw new ConflictException(
-        `Deporte #${id} has torneos, equipos or child deportes; remove those relations first`,
+        `El deporte "${deporte.nombre}" tiene torneos, equipos o subdeportes asociados. Elimine esas relaciones primero`,
       );
     }
     await this.deportesRepository.remove(deporte);
-    return { message: `Deporte #${id} deleted successfully` };
+    return { message: `Se eliminó el deporte "${deporte.nombre}" correctamente` };
   }
 
   private async findDeporte(id: string): Promise<Deporte> {
@@ -91,7 +91,7 @@ export class DeportesService {
       relations: { deporte_padre: true },
     });
     if (!deporte) {
-      throw new NotFoundException(`Deporte with id ${id} not found`);
+      throw new NotFoundException('El deporte no fue encontrado');
     }
     return deporte;
   }
@@ -105,7 +105,7 @@ export class DeportesService {
     while (currentId) {
       if (currentId === deporteId || visited.has(currentId)) {
         throw new BadRequestException(
-          'A deporte cannot be its own ancestor',
+          'Un deporte no puede ser su propio deporte padre',
         );
       }
       visited.add(currentId);

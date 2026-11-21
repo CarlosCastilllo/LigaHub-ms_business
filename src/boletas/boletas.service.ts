@@ -76,7 +76,7 @@ export class BoletasService {
   async remove(id: string): Promise<{ message: string }> {
     const boleta = await this.findBoleta(id);
     await this.boletasRepository.remove(boleta);
-    return { message: `Boleta #${id} deleted successfully` };
+    return { message: 'La boleta se eliminó correctamente' };
   }
 
   // La localidad de la boleta debe ser del escenario donde se juega el partido.
@@ -89,7 +89,7 @@ export class BoletasService {
       localidad.escenario?.id ?? localidad.escenario_id;
     if (escenarioPartido !== escenarioLocalidad) {
       throw new BadRequestException(
-        `Localidad ${localidad.id} does not belong to the escenario of partido ${partido.id}`,
+        `La localidad "${localidad.nombre}" no pertenece al escenario del partido seleccionado`,
       );
     }
   }
@@ -100,7 +100,7 @@ export class BoletasService {
       relations: BOLETA_RELATIONS,
     });
     if (!boleta) {
-      throw new NotFoundException(`Boleta with id ${id} not found`);
+      throw new NotFoundException('La boleta no fue encontrada');
     }
     return boleta;
   }
@@ -110,7 +110,7 @@ export class BoletasService {
       where: { id },
     });
     if (!aficionado) {
-      throw new NotFoundException(`Aficionado with id ${id} not found`);
+      throw new NotFoundException('El aficionado no fue encontrado');
     }
     return aficionado;
   }
@@ -121,7 +121,7 @@ export class BoletasService {
       relations: { escenario: true },
     });
     if (!partido) {
-      throw new NotFoundException(`Partido with id ${id} not found`);
+      throw new NotFoundException('El partido no fue encontrado');
     }
     return partido;
   }
@@ -132,7 +132,7 @@ export class BoletasService {
       relations: { escenario: true },
     });
     if (!localidad) {
-      throw new NotFoundException(`Localidad with id ${id} not found`);
+      throw new NotFoundException('La localidad no fue encontrada');
     }
     return localidad;
   }

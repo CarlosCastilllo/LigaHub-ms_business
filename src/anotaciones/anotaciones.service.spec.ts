@@ -172,7 +172,7 @@ describe('AnotacionesService', () => {
     anotacionesRepository.findOne.mockResolvedValue(anotacion());
 
     await expect(service.remove(anotacionId)).resolves.toEqual({
-      message: `Anotacion #${anotacionId} deleted successfully`,
+      message: 'La anotación se eliminó correctamente',
     });
     expect(anotacionesRepository.remove).toHaveBeenCalledTimes(1);
   });

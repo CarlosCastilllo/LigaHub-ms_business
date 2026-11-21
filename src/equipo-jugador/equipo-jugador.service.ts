@@ -18,7 +18,7 @@ import { EquipoJugador } from './entities/equipo-jugador.entity';
 import { EquipoJugadorMapper } from './mappers/equipo-jugador.mapper';
 
 const CONTRATO_VIGENTE_MESSAGE =
-  'Jugador already has an active contract with an equipo; retire it from that equipo first';
+  'El jugador ya tiene un contrato activo con un equipo. Retírelo antes de asignarlo a otro';
 
 @Injectable()
 export class EquipoJugadorService {
@@ -38,10 +38,14 @@ export class EquipoJugadorService {
     const equipo = await this.findEquipo(dto.equipo_id);
     const jugador = await this.findJugador(dto.jugador_id);
     if (!equipo.activo) {
-      throw new BadRequestException(`Equipo ${equipo.id} is not active`);
+      throw new BadRequestException(`El equipo "${equipo.nombre}" no está activo`);
     }
     if (!jugador.activo) {
-      throw new BadRequestException(`Jugador ${jugador.id} is not active`);
+      throw new BadRequestException(
+        jugador.user_id
+          ? `El jugador asociado al usuario ${jugador.user_id} no está activo`
+          : 'El jugador seleccionado no está activo',
+      );
     }
     await this.assertSinContratoVigente(jugador.id);
     try {
@@ -104,7 +108,7 @@ export class EquipoJugadorService {
   ): Promise<EquipoJugadorResponseDto> {
     const relacion = await this.findRelacion(id);
     if (!relacion.activo) {
-      throw new ConflictException(`EquipoJugador #${id} is already retired`);
+      throw new ConflictException('El jugador ya fue retirado de este equipo');
     }
     this.validateDates(relacion.fecha_inicio, dto.fecha_fin);
     const saved = await this.equipoJugadorRepository.save(
@@ -116,7 +120,7 @@ export class EquipoJugadorService {
   async remove(id: string): Promise<{ message: string }> {
     const relacion = await this.findRelacion(id);
     await this.equipoJugadorRepository.remove(relacion);
-    return { message: `EquipoJugador #${id} deleted successfully` };
+    return { message: 'La relación entre el jugador y el equipo se eliminó correctamente' };
   }
 
   private validateDates(fechaInicio: string, fechaFin?: string | null): void {
@@ -142,7 +146,7 @@ export class EquipoJugadorService {
       relations: { equipo: true, jugador: true },
     });
     if (!relacion) {
-      throw new NotFoundException(`EquipoJugador with id ${id} not found`);
+      throw new NotFoundException('La relación entre el jugador y el equipo no fue encontrada');
     }
     return relacion;
   }
@@ -150,7 +154,7 @@ export class EquipoJugadorService {
   private async findEquipo(id: string): Promise<Equipo> {
     const equipo = await this.equiposRepository.findOne({ where: { id } });
     if (!equipo) {
-      throw new NotFoundException(`Equipo with id ${id} not found`);
+      throw new NotFoundException('El equipo no fue encontrado');
     }
     return equipo;
   }
@@ -158,7 +162,7 @@ export class EquipoJugadorService {
   private async findJugador(id: string): Promise<Jugador> {
     const jugador = await this.jugadoresRepository.findOne({ where: { id } });
     if (!jugador) {
-      throw new NotFoundException(`Jugador with id ${id} not found`);
+      throw new NotFoundException('El jugador no fue encontrado');
     }
     return jugador;
   }
