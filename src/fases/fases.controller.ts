@@ -25,7 +25,7 @@ export class FasesController {
 
   @Get()
   findAll(@Query() query: FindFasesQueryDto) {
-    return this.fasesService.findAll(query.tipo);
+    return this.fasesService.findAll(query);
   }
 
   @Get(':id')

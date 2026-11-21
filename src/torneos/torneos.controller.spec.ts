@@ -155,6 +155,29 @@ describe('Tournament and phase CRUD routes', () => {
       .expect(400);
     await request(server).get('/torneos/no-es-uuid').expect(400);
 
+    await request(server)
+      .post('/fases')
+      .send({
+        tipo: 'GRUPOS',
+        numero_orden: 1,
+        fecha_inicio: '2026-03-01',
+        fecha_fin: '2026-03-15',
+        estado: 'PENDIENTE',
+        torneo_id: torneoId,
+        cantidad_grupos: 0,
+        equipos_por_grupo: 1,
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toEqual(
+          expect.arrayContaining([
+            'La cantidad de grupos debe ser al menos 1',
+            'Debe haber al menos 2 equipos por grupo',
+          ]),
+        );
+        expect(body.message.join(' ')).not.toMatch(/must|should be/i);
+      });
+
     torneosService.update.mockClear();
     await request(server)
       .patch(`/torneos/${torneoId}`)

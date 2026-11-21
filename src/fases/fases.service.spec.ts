@@ -12,6 +12,7 @@ import { EstadoFase, Fase, TipoFase } from './entities/fase.entity';
 import { FaseMapper } from './mappers/fase.mapper';
 import { FasesService } from './fases.service';
 import { Torneo } from '../torneos/entities/torneo.entity';
+import { Equipo } from '../equipos/entities/equipo.entity';
 
 describe('FasesService', () => {
   let service: FasesService;
@@ -19,6 +20,7 @@ describe('FasesService', () => {
     Pick<Repository<Fase>, 'save' | 'find' | 'findOne' | 'remove'>
   >;
   let torneosRepository: jest.Mocked<Pick<Repository<Torneo>, 'findOne'>>;
+  let equiposRepository: jest.Mocked<Pick<Repository<Equipo>, 'find'>>;
 
   beforeEach(() => {
     repository = {
@@ -28,9 +30,13 @@ describe('FasesService', () => {
       remove: jest.fn(),
     };
     torneosRepository = { findOne: jest.fn() };
+    equiposRepository = { find: jest.fn() };
+    equiposRepository.find.mockResolvedValue([]);
+    repository.findOne.mockResolvedValue(null);
     service = new FasesService(
       repository as unknown as Repository<Fase>,
       torneosRepository as unknown as Repository<Torneo>,
+      equiposRepository as unknown as Repository<Equipo>,
       new FaseMapper(),
     );
   });
@@ -154,6 +160,27 @@ describe('FasesService', () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
+  it('rejects a duplicate phase order in the same tournament', async () => {
+    torneosRepository.findOne.mockResolvedValue(tournament());
+    repository.findOne.mockResolvedValue(groupsPhase());
+
+    await expect(
+      service.create({
+        tipo: TipoFase.GRUPOS,
+        numero_orden: 1,
+        fecha_inicio: '2026-03-01',
+        fecha_fin: '2026-03-15',
+        estado: EstadoFase.PENDIENTE,
+        torneo_id: '550e8400-e29b-41d4-a716-446655440000',
+        cantidad_grupos: 4,
+        equipos_por_grupo: 4,
+      }),
+    ).rejects.toThrow(
+      'El torneo ya tiene una fase en la posición 1',
+    );
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when a phase does not exist', async () => {
     repository.findOne.mockResolvedValue(null);
 
@@ -213,7 +240,7 @@ describe('FasesService', () => {
     expect(removed.message).toContain('fase número');
     expect(repository.findOne).toHaveBeenLastCalledWith({
       where: { id: phase.id },
-      relations: { partidos: true },
+      relations: { partidos: true, torneo: true },
     });
   });
 
@@ -242,12 +269,13 @@ describe('FasesService', () => {
     const queryBuilder = {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
       getMany: jest.fn<() => Promise<Fase[]>>().mockResolvedValue([finalPhase()]),
     };
     const createQueryBuilder = jest.fn().mockReturnValue(queryBuilder);
     Object.assign(repository, { createQueryBuilder });
 
-    const result = await service.findAll(TipoFase.FINAL);
+    const result = await service.findAll({ tipo: TipoFase.FINAL });
 
     expect(queryBuilder.where).toHaveBeenCalledWith('fase.tipo = :tipo', {
       tipo: TipoFase.FINAL,

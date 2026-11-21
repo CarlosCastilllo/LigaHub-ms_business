@@ -151,7 +151,7 @@ export class JugadoresService {
 
   private duplicado(userId: number): ConflictException {
     return new ConflictException(
-      `Ya existe un jugador asociado al usuario ${userId}`,
+      'Ya existe un jugador asociado al usuario seleccionado',
     );
   }
 

@@ -56,7 +56,9 @@ describe('JugadoresService', () => {
     repository.findOne.mockResolvedValue(jugador());
 
     await expect(service.create(dto, authorization)).rejects.toThrow(
-      new ConflictException('Ya existe un jugador asociado al usuario 7'),
+      new ConflictException(
+        'Ya existe un jugador asociado al usuario seleccionado',
+      ),
     );
     expect(securityUsers.assertUserExists).not.toHaveBeenCalled();
     expect(repository.save).not.toHaveBeenCalled();
@@ -68,13 +70,15 @@ describe('JugadoresService', () => {
     );
 
     await expect(service.create(dto, authorization)).rejects.toThrow(
-      new ConflictException('Ya existe un jugador asociado al usuario 7'),
+      new ConflictException(
+        'Ya existe un jugador asociado al usuario seleccionado',
+      ),
     );
   });
 
   it('does not save when the user does not exist', async () => {
     securityUsers.assertUserExists.mockRejectedValue(
-      new NotFoundException('User with id 7 not found'),
+      new NotFoundException('El usuario seleccionado no fue encontrado'),
     );
 
     await expect(service.create(dto, authorization)).rejects.toBeInstanceOf(
