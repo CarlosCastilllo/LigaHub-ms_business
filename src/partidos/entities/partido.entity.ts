@@ -39,12 +39,6 @@ export class Partido {
   })
   estado!: EstadoPartido;
 
-  @Column({ type: 'int', default: 0 })
-  goles_local!: number;
-
-  @Column({ type: 'int', default: 0 })
-  goles_visitante!: number;
-
   @ManyToOne(() => Equipo, (equipo) => equipo.partidos_locales, {
     cascade: false,
     nullable: false,
@@ -100,7 +94,8 @@ export class Partido {
   @OneToMany(() => Apuesta, (apuesta) => apuesta.partido, { cascade: false })
   apuestas?: Apuesta[];
 
-  // Lado inverso de la relacion 1:N Partido -> Anotacion.
+  // Lado inverso de la relacion 1:N Partido -> Anotacion (goles, HU-GC-07).
+  // El marcador se calcula a partir de ellas; no se guarda en el partido.
   @OneToMany(() => Anotacion, (anotacion) => anotacion.partido, {
     cascade: false,
   })

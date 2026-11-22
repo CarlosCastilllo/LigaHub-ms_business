@@ -18,17 +18,77 @@ export interface PartidoCorreo {
   direccion: string | null;
 }
 
+// HU-GC-07: marcador del partido en los correos de gol y de resumen.
+export interface MarcadorCorreo {
+  equipo_local: string;
+  equipo_visitante: string;
+  goles_local: number;
+  goles_visitante: number;
+  torneo: string;
+  fase: string;
+}
+
+export interface GolCorreo {
+  jugador: string;
+  equipo: string;
+  minuto: number;
+}
+
+export interface ResumenCorreo extends MarcadorCorreo {
+  fecha_hora: string;
+  escenario: string | null;
+}
+
 // Cliente de ms-notificaciones (Flask + Gmail). Autentica con X-Service-Key.
+// Ningún método lanza: el correo es secundario y devuelven cuántos se enviaron.
 @Injectable()
 export class NotificationsClient {
   private readonly logger = new Logger(NotificationsClient.name);
 
   constructor(private readonly configService: ConfigService) {}
 
-  // Devuelve cuántos correos se enviaron. No lanza: el correo es secundario.
-  async enviarNuevoPartido(
+  // HU-GC-06: aviso de nuevo partido.
+  enviarNuevoPartido(
     destinatarios: DestinatarioCorreo[],
     partido: PartidoCorreo,
+  ): Promise<number> {
+    return this.enviar(
+      '/api/partidos/nuevo',
+      { destinatarios, partido },
+      'del nuevo partido',
+    );
+  }
+
+  // HU-GC-07: aviso de un gol registrado con el partido en juego.
+  enviarGol(
+    destinatarios: DestinatarioCorreo[],
+    partido: MarcadorCorreo,
+    gol: GolCorreo,
+  ): Promise<number> {
+    return this.enviar(
+      '/api/partidos/gol',
+      { destinatarios, partido, gol },
+      'del gol',
+    );
+  }
+
+  // HU-GC-07: resumen del partido al finalizarlo.
+  enviarResumenPartido(
+    destinatarios: DestinatarioCorreo[],
+    partido: ResumenCorreo,
+    goles: GolCorreo[],
+  ): Promise<number> {
+    return this.enviar(
+      '/api/partidos/resumen',
+      { destinatarios, partido, goles },
+      'del resumen del partido',
+    );
+  }
+
+  private async enviar(
+    ruta: string,
+    body: object,
+    descripcion: string,
   ): Promise<number> {
     const baseUrl = this.configService.get<string>('EMAIL_SERVICE_URL');
     const apiKey = this.configService.get<string>('EMAIL_SERVICE_API_KEY');
@@ -40,8 +100,8 @@ export class NotificationsClient {
     }
     try {
       const { data } = await axios.post<{ enviados?: number }>(
-        `${baseUrl}/api/partidos/nuevo`,
-        { destinatarios, partido },
+        `${baseUrl}${ruta}`,
+        body,
         {
           headers: { 'X-Service-Key': apiKey },
           // Gmail envía un correo por destinatario: puede tardar.
@@ -52,7 +112,7 @@ export class NotificationsClient {
     } catch (error) {
       const status = axios.isAxiosError(error) ? error.response?.status : undefined;
       this.logger.error(
-        `No fue posible enviar los correos del nuevo partido: ${status ?? 'sin respuesta'}`,
+        `No fue posible enviar los correos ${descripcion}: ${status ?? 'sin respuesta'}`,
       );
       return 0;
     }

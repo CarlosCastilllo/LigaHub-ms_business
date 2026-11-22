@@ -231,6 +231,8 @@ export class FasesService {
           equipo_local: true,
           equipo_visitante: true,
           escenario: true,
+          // HU-GC-07: el marcador se calcula a partir de las anotaciones.
+          anotaciones: true,
         },
       },
     });

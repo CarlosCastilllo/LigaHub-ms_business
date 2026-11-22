@@ -32,6 +32,7 @@ import { PartidosService } from './partidos.service';
     SecurityUsersClient,
     NotificationsClient,
   ],
-  exports: [PartidosService],
+  // AnotacionesModule usa PartidoNotificacionesService para el aviso de gol.
+  exports: [PartidosService, PartidoNotificacionesService],
 })
 export class PartidosModule {}

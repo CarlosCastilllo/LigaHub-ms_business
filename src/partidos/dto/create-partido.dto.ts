@@ -1,11 +1,9 @@
 import {
   IsDateString,
   IsEnum,
-  IsInt,
   IsOptional,
   IsUUID,
-  Min,
-} from 'class-validator';
+}from 'class-validator';
 import { EstadoPartido } from '../entities/partido.entity';
 
 export class CreatePartidoDto {
@@ -23,17 +21,7 @@ export class CreatePartidoDto {
   @IsUUID(undefined, { message: 'El equipo visitante no es válido' })
   equipo_visitante_id!: string;
 
-  @IsOptional()
-  @IsInt({ message: 'Los goles del equipo local deben ser un número entero' })
-  @Min(0, { message: 'Los goles del equipo local no pueden ser negativos' })
-  goles_local?: number;
-
-  @IsOptional()
-  @IsInt({
-    message: 'Los goles del equipo visitante deben ser un número entero',
-  })
-  @Min(0, { message: 'Los goles del equipo visitante no pueden ser negativos' })
-  goles_visitante?: number;
+  // HU-GC-07: el marcador no se envía; se calcula a partir de las anotaciones.
 
   // Opcional: el escenario se asocia "cuando corresponda". null lo desasigna.
   @IsOptional()

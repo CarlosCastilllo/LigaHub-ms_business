@@ -8,6 +8,7 @@ import { PartidoResponseDto } from '../dto/partido-response.dto';
 import { UpdatePartidoDto } from '../dto/update-partido.dto';
 import { EstadoPartido, Partido } from '../entities/partido.entity';
 import { TipoFase } from '../../fases/entities/fase.entity';
+import { calcularMarcador } from '../marcador';
 
 export class PartidoMapper {
   static toEntity(
@@ -23,8 +24,6 @@ export class PartidoMapper {
       equipo_local: equipoLocal,
       equipo_visitante: equipoVisitante,
       fase,
-      goles_local: dto.goles_local ?? 0,
-      goles_visitante: dto.goles_visitante ?? 0,
       escenario,
     });
   }
@@ -35,10 +34,6 @@ export class PartidoMapper {
       entity.fecha_hora = new Date(dto.fecha_hora);
     }
     if (dto.estado !== undefined) entity.estado = dto.estado;
-    if (dto.goles_local !== undefined) entity.goles_local = dto.goles_local;
-    if (dto.goles_visitante !== undefined) {
-      entity.goles_visitante = dto.goles_visitante;
-    }
     return entity;
   }
 
@@ -52,8 +47,8 @@ export class PartidoMapper {
         entity.equipo_visitante?.id ?? entity.equipo_visitante_id,
       equipo_local_nombre: entity.equipo_local?.nombre ?? null,
       equipo_visitante_nombre: entity.equipo_visitante?.nombre ?? null,
-      goles_local: entity.goles_local,
-      goles_visitante: entity.goles_visitante,
+      // HU-GC-07: el marcador se calcula a partir de las anotaciones (goles).
+      ...calcularMarcador(entity),
       // escenario === null significa que se acaba de desasignar.
       escenario_id:
         entity.escenario !== undefined

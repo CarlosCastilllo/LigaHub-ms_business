@@ -1,4 +1,8 @@
-import { PartialType } from '@nestjs/mapped-types';
+import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { CreateAnotacionDto } from './create-anotacion.dto';
 
-export class UpdateAnotacionDto extends PartialType(CreateAnotacionDto) {}
+// La anotación conserva siempre su partido: solo cambian minuto, descripción
+// y jugador.
+export class UpdateAnotacionDto extends PartialType(
+  OmitType(CreateAnotacionDto, ['partido_id'] as const),
+) {}

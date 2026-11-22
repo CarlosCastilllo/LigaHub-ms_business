@@ -31,7 +31,7 @@ describe('EscenariosService', () => {
     escenario_padre: true,
     sub_escenarios: true,
     localidades: { boletas: true },
-    partidos: true,
+    partidos: { anotaciones: true },
     escenarios_torneo: { torneo: true, escenario: true },
   };
 
@@ -203,8 +203,6 @@ describe('EscenariosService', () => {
       estado: EstadoPartido.PROGRAMADO,
       equipo_local_id: '550e8400-e29b-41d4-a716-446655440071',
       equipo_visitante_id: '550e8400-e29b-41d4-a716-446655440072',
-      goles_local: 0,
-      goles_visitante: 0,
       escenario: entity,
     });
   }

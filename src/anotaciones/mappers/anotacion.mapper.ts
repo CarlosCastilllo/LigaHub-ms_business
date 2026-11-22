@@ -8,19 +8,22 @@ export class AnotacionMapper {
     dto: CreateAnotacionDto,
     partido: Anotacion['partido'],
     jugador: Anotacion['jugador'],
+    equipo: Anotacion['equipo'],
   ): Anotacion {
     return Object.assign(new Anotacion(), {
       minuto: dto.minuto,
-      descripcion: dto.descripcion,
+      descripcion: AnotacionMapper.descripcion(dto.descripcion) ?? null,
       partido,
       jugador,
+      equipo,
     });
   }
 
-  // El partido lo reasigna el service despues de validarlo.
+  // El jugador y el equipo los reasigna el service despues de validarlos.
   static mergeEntity(entity: Anotacion, dto: UpdateAnotacionDto): Anotacion {
     if (dto.minuto !== undefined) entity.minuto = dto.minuto;
-    if (dto.descripcion !== undefined) entity.descripcion = dto.descripcion;
+    const descripcion = AnotacionMapper.descripcion(dto.descripcion);
+    if (descripcion !== undefined) entity.descripcion = descripcion;
     return entity;
   }
 
@@ -28,13 +31,23 @@ export class AnotacionMapper {
     return {
       id: entity.id,
       minuto: entity.minuto,
-      descripcion: entity.descripcion,
+      descripcion: entity.descripcion ?? null,
       partido_id: entity.partido?.id ?? entity.partido_id,
       jugador_id: entity.jugador?.id ?? entity.jugador_id,
+      equipo_id: entity.equipo?.id ?? entity.equipo_id,
     };
   }
 
   static toResponseDtoList(entities: Anotacion[]): AnotacionResponseDto[] {
     return entities.map((entity) => AnotacionMapper.toResponseDto(entity));
+  }
+
+  // Texto vacío se guarda como null; undefined significa "sin cambios".
+  private static descripcion(
+    value: string | null | undefined,
+  ): string | null | undefined {
+    if (value === undefined) return undefined;
+    const limpio = value?.trim() ?? '';
+    return limpio === '' ? null : limpio;
   }
 }

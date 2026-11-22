@@ -41,8 +41,9 @@ export class PartidosController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePartidoDto,
+    @Headers('authorization') authorization?: string,
   ) {
-    return this.partidosService.update(id, dto);
+    return this.partidosService.update(id, dto, authorization);
   }
 
   @Delete(':id')

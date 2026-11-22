@@ -45,7 +45,10 @@ describe('PartidosService', () => {
   let escenariosTorneoRepository: jest.Mocked<
     Pick<Repository<EscenarioTorneo>, 'findOne'>
   >;
-  let notificaciones: { notificarNuevoPartido: jest.Mock<any> };
+  let notificaciones: {
+    notificarNuevoPartido: jest.Mock<any>;
+    notificarResumen: jest.Mock<any>;
+  };
 
   const escenarioId = '550e8400-e29b-41d4-a716-446655440010';
   const partidoId = '550e8400-e29b-41d4-a716-446655440060';
@@ -106,8 +109,6 @@ describe('PartidosService', () => {
       equipo_local_id: localId,
       equipo_visitante: equipo(visitanteId),
       equipo_visitante_id: visitanteId,
-      goles_local: 0,
-      goles_visitante: 0,
       escenario: escenario(),
       escenario_id: escenarioId,
       fase: fase(),
@@ -139,6 +140,7 @@ describe('PartidosService', () => {
     escenariosTorneoRepository = { findOne: jest.fn() };
     notificaciones = {
       notificarNuevoPartido: jest.fn<any>().mockResolvedValue(0),
+      notificarResumen: jest.fn<any>().mockResolvedValue(0),
     };
 
     escenariosRepository.findOne.mockResolvedValue(escenario());
@@ -350,7 +352,7 @@ describe('PartidosService', () => {
         partido({ fase: faseFinal() }),
       );
 
-      await service.update(partidoId, { fase_id: faseId, goles_local: 1 });
+      await service.update(partidoId, { fase_id: faseId });
 
       expect(partidosRepository.count).not.toHaveBeenCalled();
     });
@@ -436,22 +438,85 @@ describe('PartidosService', () => {
   });
 
   describe('update', () => {
-    it('actualiza el marcador y el estado', async () => {
-      partidosRepository.findOne.mockResolvedValue(partido());
-
-      const result = await service.update(partidoId, {
-        estado: EstadoPartido.FINALIZADO,
-        goles_local: 2,
-        goles_visitante: 1,
+    // HU-GC-07: el marcador sale de las anotaciones de cada equipo.
+    function gol(equipoId: string, minuto: number): Anotacion {
+      return Object.assign(new Anotacion(), {
+        id: `gol-${minuto}`,
+        minuto,
+        descripcion: null,
+        equipo_id: equipoId,
       });
+    }
+
+    it('calcula el marcador a partir de las anotaciones', async () => {
+      partidosRepository.findOne.mockResolvedValue(
+        partido({
+          anotaciones: [gol(localId, 10), gol(visitanteId, 30), gol(localId, 80)],
+        }),
+      );
+
+      await expect(service.findOne(partidoId)).resolves.toEqual(
+        expect.objectContaining({ goles_local: 2, goles_visitante: 1 }),
+      );
+    });
+
+    it('finaliza un partido en juego y envía el resumen', async () => {
+      partidosRepository.findOne.mockResolvedValue(
+        partido({ estado: EstadoPartido.EN_JUEGO, anotaciones: [gol(localId, 5)] }),
+      );
+
+      const result = await service.update(
+        partidoId,
+        { estado: EstadoPartido.FINALIZADO },
+        'Bearer token',
+      );
 
       expect(result).toEqual(
         expect.objectContaining({
           estado: EstadoPartido.FINALIZADO,
-          goles_local: 2,
-          goles_visitante: 1,
+          goles_local: 1,
+          goles_visitante: 0,
         }),
       );
+      expect(notificaciones.notificarResumen).toHaveBeenCalledWith(
+        partidoId,
+        'Bearer token',
+      );
+    });
+
+    it('no falla si el envío del resumen falla', async () => {
+      partidosRepository.findOne.mockResolvedValue(
+        partido({ estado: EstadoPartido.EN_JUEGO }),
+      );
+      notificaciones.notificarResumen.mockRejectedValue(new Error('caído'));
+
+      await expect(
+        service.update(partidoId, { estado: EstadoPartido.FINALIZADO }),
+      ).resolves.toBeDefined();
+    });
+
+    it('un partido programado no puede pasar directo a finalizado', async () => {
+      partidosRepository.findOne.mockResolvedValue(partido());
+
+      await expect(
+        service.update(partidoId, { estado: EstadoPartido.FINALIZADO }),
+      ).rejects.toThrow('Solo un partido en juego puede marcarse como finalizado');
+      expect(partidosRepository.save).not.toHaveBeenCalled();
+      expect(notificaciones.notificarResumen).not.toHaveBeenCalled();
+    });
+
+    it('otros cambios de estado no envían el resumen', async () => {
+      partidosRepository.findOne.mockResolvedValue(partido());
+
+      await service.update(partidoId, { estado: EstadoPartido.EN_JUEGO });
+
+      expect(notificaciones.notificarResumen).not.toHaveBeenCalled();
+    });
+
+    it('crear un partido finalizado no envía el resumen', async () => {
+      await service.create({ ...createDto, estado: EstadoPartido.FINALIZADO });
+
+      expect(notificaciones.notificarResumen).not.toHaveBeenCalled();
     });
 
     it.each([EstadoPartido.FINALIZADO, EstadoPartido.CANCELADO])(
@@ -460,23 +525,23 @@ describe('PartidosService', () => {
         partidosRepository.findOne.mockResolvedValue(partido({ estado }));
 
         await expect(
-          service.update(partidoId, { goles_local: 3 }),
+          service.update(partidoId, { fecha_hora: '2026-12-01T10:00:00-05:00' }),
         ).rejects.toThrow('ya no puede modificarse');
         expect(partidosRepository.save).not.toHaveBeenCalled();
       },
     );
 
-    it('un partido en juego solo admite marcador y estado', async () => {
+    it('un partido en juego solo admite cambiar su estado', async () => {
       partidosRepository.findOne.mockResolvedValue(
         partido({ estado: EstadoPartido.EN_JUEGO }),
       );
 
       await expect(
         service.update(partidoId, { fecha_hora: '2026-12-01T10:00:00-05:00' }),
-      ).rejects.toThrow('solo permite actualizar el marcador');
+      ).rejects.toThrow('solo permite actualizar su estado');
       await expect(
-        service.update(partidoId, { goles_local: 1, fase_id: faseId }),
-      ).resolves.toEqual(expect.objectContaining({ goles_local: 1 }));
+        service.update(partidoId, { estado: EstadoPartido.CANCELADO, fase_id: faseId }),
+      ).resolves.toEqual(expect.objectContaining({ estado: EstadoPartido.CANCELADO }));
     });
 
     it('un partido en juego no vuelve a programado', async () => {

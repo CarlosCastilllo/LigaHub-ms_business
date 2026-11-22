@@ -16,7 +16,8 @@ const ESCENARIO_RELATIONS = {
   escenario_padre: true,
   sub_escenarios: true,
   localidades: { boletas: true },
-  partidos: true,
+  // HU-GC-07: el marcador de cada partido se calcula con sus anotaciones.
+  partidos: { anotaciones: true },
   escenarios_torneo: { torneo: true, escenario: true },
 } as const;
 

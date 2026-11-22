@@ -133,9 +133,17 @@ export class PartidosService {
     return PartidoMapper.toResponseDto(await this.findPartido(id));
   }
 
-  async update(id: string, dto: UpdatePartidoDto): Promise<PartidoResponseDto> {
+  async update(
+    id: string,
+    dto: UpdatePartidoDto,
+    authorization?: string,
+  ): Promise<PartidoResponseDto> {
     const partido = await this.findPartido(id);
     this.assertPartidoEditable(partido, dto);
+    // HU-GC-07: el resumen se envía solo en la transición EN_JUEGO -> FINALIZADO.
+    const finaliza =
+      partido.estado === EstadoPartido.EN_JUEGO &&
+      dto.estado === EstadoPartido.FINALIZADO;
 
     const localId = dto.equipo_local_id ?? partido.equipo_local_id;
     const visitanteId = dto.equipo_visitante_id ?? partido.equipo_visitante_id;
@@ -168,6 +176,18 @@ export class PartidosService {
     const saved = await this.partidosRepository.save(
       PartidoMapper.mergeEntity(partido, dto),
     );
+
+    // El correo no bloquea ni hace fallar la actualización del partido.
+    if (finaliza) {
+      this.notificaciones
+        .notificarResumen(saved.id, authorization)
+        .catch((error: unknown) =>
+          this.logger.error(
+            `No fue posible enviar el resumen del partido ${saved.id}: ${String(error)}`,
+          ),
+        );
+    }
+
     return PartidoMapper.toResponseDto(saved);
   }
 
@@ -203,11 +223,20 @@ export class PartidosService {
     }
   }
 
-  // FINALIZADO y CANCELADO no se editan; EN_JUEGO solo admite marcador y estado.
+  // FINALIZADO y CANCELADO no se editan; EN_JUEGO solo admite cambiar el
+  // estado. Solo un partido en juego puede pasar a FINALIZADO (HU-GC-07).
   private assertPartidoEditable(partido: Partido, dto: UpdatePartidoDto): void {
     if (ESTADOS_CERRADOS.includes(partido.estado)) {
       throw new ConflictException(
         `El partido está ${partido.estado.toLowerCase()} y ya no puede modificarse`,
+      );
+    }
+    if (
+      dto.estado === EstadoPartido.FINALIZADO &&
+      partido.estado !== EstadoPartido.EN_JUEGO
+    ) {
+      throw new ConflictException(
+        'Solo un partido en juego puede marcarse como finalizado',
       );
     }
     if (partido.estado !== EstadoPartido.EN_JUEGO) return;
@@ -227,7 +256,7 @@ export class PartidosService {
         (dto.escenario_id ?? null) !== (partido.escenario_id ?? null));
     if (cambiaProgramacion) {
       throw new ConflictException(
-        'Un partido en juego solo permite actualizar el marcador y el estado',
+        'Un partido en juego solo permite actualizar su estado',
       );
     }
     if (dto.estado === EstadoPartido.PROGRAMADO) {
