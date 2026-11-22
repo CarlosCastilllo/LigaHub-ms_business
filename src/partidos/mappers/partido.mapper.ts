@@ -1,3 +1,4 @@
+import { Escenario } from '../../escenarios/entities/escenario.entity';
 import { AnotacionMapper } from '../../anotaciones/mappers/anotacion.mapper';
 import { ApuestaMapper } from '../../apuestas/mappers/apuesta.mapper';
 import { BoletaMapper } from '../../boletas/mappers/boleta.mapper';
@@ -11,7 +12,7 @@ import { TipoFase } from '../../fases/entities/fase.entity';
 export class PartidoMapper {
   static toEntity(
     dto: CreatePartidoDto,
-    escenario: Partido['escenario'],
+    escenario: Escenario | null,
     equipoLocal: Partido['equipo_local'],
     equipoVisitante: Partido['equipo_visitante'],
     fase: NonNullable<Partido['fase']>,
@@ -49,9 +50,17 @@ export class PartidoMapper {
       equipo_local_id: entity.equipo_local?.id ?? entity.equipo_local_id,
       equipo_visitante_id:
         entity.equipo_visitante?.id ?? entity.equipo_visitante_id,
+      equipo_local_nombre: entity.equipo_local?.nombre ?? null,
+      equipo_visitante_nombre: entity.equipo_visitante?.nombre ?? null,
       goles_local: entity.goles_local,
       goles_visitante: entity.goles_visitante,
-      escenario_id: entity.escenario?.id ?? entity.escenario_id,
+      // escenario === null significa que se acaba de desasignar.
+      escenario_id:
+        entity.escenario !== undefined
+          ? (entity.escenario?.id ?? null)
+          : (entity.escenario_id ?? null),
+      escenario_nombre: entity.escenario?.nombre ?? null,
+      torneo_id: entity.fase?.torneo?.id ?? entity.fase?.torneo_id ?? null,
       fase_id: entity.fase?.id ?? entity.fase_id ?? null,
       fase_tipo: PartidoMapper.faseTipo(entity),
       boletas: entity.boletas

@@ -11,9 +11,14 @@ export class PartidoResponseDto {
   estado!: EstadoPartido;
   equipo_local_id!: string;
   equipo_visitante_id!: string;
+  // Nombres para mostrar el detalle sin consultas adicionales.
+  equipo_local_nombre!: string | null;
+  equipo_visitante_nombre!: string | null;
   goles_local!: number;
   goles_visitante!: number;
-  escenario_id!: string;
+  escenario_id!: string | null;
+  escenario_nombre!: string | null;
+  torneo_id!: string | null;
   fase_id!: string | null;
   // GRUPOS o FINAL; permite identificar los partidos de la fase final.
   fase_tipo!: TipoFase | null;

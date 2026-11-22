@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -19,8 +20,11 @@ export class PartidosController {
   constructor(private readonly partidosService: PartidosService) {}
 
   @Post()
-  create(@Body() dto: CreatePartidoDto) {
-    return this.partidosService.create(dto);
+  create(
+    @Body() dto: CreatePartidoDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.partidosService.create(dto, authorization);
   }
 
   @Get()

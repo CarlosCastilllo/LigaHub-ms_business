@@ -85,6 +85,11 @@ export class BoletasService {
     localidad: Localidad,
   ): void {
     const escenarioPartido = partido.escenario?.id ?? partido.escenario_id;
+    if (!escenarioPartido) {
+      throw new BadRequestException(
+        'El partido aún no tiene escenario asignado; no se pueden vender boletas',
+      );
+    }
     const escenarioLocalidad =
       localidad.escenario?.id ?? localidad.escenario_id;
     if (escenarioPartido !== escenarioLocalidad) {

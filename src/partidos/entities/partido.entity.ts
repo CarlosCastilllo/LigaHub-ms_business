@@ -69,16 +69,17 @@ export class Partido {
 
   // Lado dueno de la relacion 1:N Escenario -> Partido (FK escenario_id).
   // NO ACTION: un escenario con partidos no se puede borrar.
+  // Opcional (HU-GC-06): el escenario se asigna cuando corresponda.
   @ManyToOne(() => Escenario, (escenario) => escenario.partidos, {
     cascade: false,
-    nullable: false,
+    nullable: true,
     onDelete: 'NO ACTION',
   })
   @JoinColumn({ name: 'escenario_id' })
-  escenario!: Relation<Escenario>;
+  escenario?: Relation<Escenario> | null;
 
   @RelationId((partido: Partido) => partido.escenario)
-  escenario_id!: string;
+  escenario_id!: string | null;
 
   @ManyToOne(() => Fase, (fase) => fase.partidos, {
     cascade: false,
