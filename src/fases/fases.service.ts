@@ -5,18 +5,28 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Torneo } from '../torneos/entities/torneo.entity';
 import { CreateFaseDto } from './dto/create-fase.dto';
 import { FaseResponseDto } from './dto/fase-response.dto';
 import { UpdateFaseDto } from './dto/update-fase.dto';
-import { Fase, TipoFase } from './entities/fase.entity';
+import { EstadoFase, Fase, TipoFase } from './entities/fase.entity';
 import { FaseMapper } from './mappers/fase.mapper';
 import { FindFasesQueryDto } from './dto/find-fases-query.dto';
 import { Equipo } from '../equipos/entities/equipo.entity';
+import { EquipoResponseDto } from '../equipos/dto/equipo-response.dto';
+import { EquipoMapper } from '../equipos/mappers/equipo.mapper';
+import {
+  EstadoInscripcion,
+  Inscripcion,
+} from '../inscripciones/entities/inscripcion.entity';
+import { AsignarEquiposGrupoDto } from './dto/asignar-equipos-grupo.dto';
+import { FaseGrupos } from './entities/fase-grupos.entity';
 
 // Toda fase se lee junto con su detalle 1:1 para saber su tipo.
 const FASE_RELATIONS = { torneo: true, grupos: true, final: true } as const;
+// Las fases se devuelven en el orden en que se desarrollan.
+const FASE_ORDER = { numero_orden: 'ASC', fecha_inicio: 'ASC' } as const;
 
 @Injectable()
 export class FasesService {
@@ -27,6 +37,8 @@ export class FasesService {
     private readonly torneosRepository: Repository<Torneo>,
     @InjectRepository(Equipo)
     private readonly equiposRepository: Repository<Equipo>,
+    @InjectRepository(Inscripcion)
+    private readonly inscripcionesRepository: Repository<Inscripcion>,
     private readonly faseMapper: FaseMapper,
   ) {}
 
@@ -38,6 +50,13 @@ export class FasesService {
       );
     }
     const torneo = await this.findTorneo(dto.torneo_id);
+    if (dto.tipo === TipoFase.GRUPOS && dto.nombre !== undefined) {
+      await this.assertNombreGrupoDisponible(
+        dto.torneo_id,
+        dto.numero_orden,
+        dto.nombre,
+      );
+    }
     const entity = this.faseMapper.toEntity(dto);
     entity.torneo = torneo;
     const saved = await this.fasesRepository.save(entity);
@@ -45,12 +64,13 @@ export class FasesService {
   }
 
   async findAll(filtros: FindFasesQueryDto = {}): Promise<FaseResponseDto[]> {
-    const { tipo, torneo_id } = filtros;
+    const { tipo, torneo_id, numero_orden } = filtros;
     if (torneo_id) await this.findTorneo(torneo_id);
 
-    if (!tipo && !torneo_id) {
+    if (!tipo && !torneo_id && numero_orden === undefined) {
       const fases = await this.fasesRepository.find({
         relations: FASE_RELATIONS,
+        order: FASE_ORDER,
       });
       return this.faseMapper.toResponseDtoList(fases);
     }
@@ -72,6 +92,14 @@ export class FasesService {
         torneo_id ? 'torneo.id = :torneo_id' : '1 = 1',
         torneo_id ? { torneo_id } : {},
       )
+      .andWhere(
+        numero_orden !== undefined
+          ? 'fase.numero_orden = :numero_orden'
+          : '1 = 1',
+        numero_orden !== undefined ? { numero_orden } : {},
+      )
+      .orderBy('fase.numero_orden', 'ASC')
+      .addOrderBy('fase.fecha_inicio', 'ASC')
       .getMany();
     return this.faseMapper.toResponseDtoList(fases);
   }
@@ -96,7 +124,9 @@ export class FasesService {
       throw new NotFoundException('La fase no fue encontrada');
     }
 
-    if (dto.torneo_id !== undefined) {
+    const torneoActualId = fase.torneo?.id ?? fase.torneo_id;
+    if (dto.torneo_id !== undefined && dto.torneo_id !== torneoActualId) {
+      await this.assertSinDatosAsociados(fase);
       fase.torneo = await this.findTorneo(dto.torneo_id);
     }
 
@@ -115,6 +145,20 @@ export class FasesService {
       await this.assertCupoNoMenorQueAsignados(
         fase.grupos.id,
         dto.cupo_equipos,
+      );
+    }
+
+    if (
+      fase.grupos &&
+      (dto.nombre !== undefined ||
+        dto.numero_orden !== undefined ||
+        dto.torneo_id !== undefined)
+    ) {
+      await this.assertNombreGrupoDisponible(
+        fase.torneo?.id ?? fase.torneo_id,
+        dto.numero_orden ?? fase.numero_orden,
+        dto.nombre ?? fase.grupos.nombre,
+        fase.id,
       );
     }
 
@@ -142,6 +186,11 @@ export class FasesService {
         `La fase número ${fase.numero_orden} del torneo "${fase.torneo?.nombre ?? 'seleccionado'}" tiene partidos. Elimine o reasigne esos partidos primero`,
       );
     }
+    if (fase.grupos && fase.estado !== EstadoFase.PENDIENTE) {
+      throw new ConflictException(
+        `El grupo "${fase.grupos.nombre}" ya está en curso o finalizado. Solo se pueden eliminar grupos pendientes`,
+      );
+    }
     if (fase.grupos) {
       // Los equipos apuntan al detalle fases_grupos, no a la fase general.
       const equipos = await this.equiposRepository.find({
@@ -161,12 +210,189 @@ export class FasesService {
     };
   }
 
+  // Equipos que conforman un grupo (fase de tipo GRUPOS).
+  async findEquiposGrupo(id: string): Promise<EquipoResponseDto[]> {
+    const grupo = await this.findGrupo(id);
+    const equipos = await this.equiposRepository.find({
+      where: { fase_grupos_id: grupo.id },
+      order: { nombre: 'ASC' },
+    });
+    return EquipoMapper.toResponseDtoList(equipos);
+  }
+
+  // Asigna varios equipos a la vez. Un equipo que ya esta en otro grupo debe
+  // salir de el primero (equipos.fase_grupos_id guarda un solo grupo).
+  async asignarEquiposGrupo(
+    id: string,
+    dto: AsignarEquiposGrupoDto,
+  ): Promise<EquipoResponseDto[]> {
+    const fase = await this.findFaseGrupos(id);
+    const grupo = fase.grupos as FaseGrupos;
+    const torneo = fase.torneo;
+    const ids = [...new Set(dto.equipo_ids)];
+
+    const equipos = await this.equiposRepository.find({
+      where: { id: In(ids) },
+      relations: { fase_grupos: true },
+    });
+    if (equipos.length !== ids.length) {
+      throw new NotFoundException(
+        'Alguno de los equipos seleccionados no fue encontrado',
+      );
+    }
+
+    for (const equipo of equipos) {
+      if (equipo.fase_grupos_id === grupo.id) {
+        throw new ConflictException(
+          `El equipo "${equipo.nombre}" ya pertenece al grupo "${grupo.nombre}"`,
+        );
+      }
+      if (equipo.fase_grupos_id) {
+        throw new ConflictException(
+          `El equipo "${equipo.nombre}" ya está asignado al grupo "${equipo.fase_grupos?.nombre ?? 'actual'}". Debe salir de ese grupo antes de entrar a otro`,
+        );
+      }
+      if (!equipo.activo) {
+        throw new ConflictException(
+          `El equipo "${equipo.nombre}" está inactivo y no puede asignarse a un grupo`,
+        );
+      }
+    }
+
+    const inscripciones = await this.inscripcionesRepository.find({
+      where: {
+        equipo: { id: In(ids) },
+        torneo: { id: torneo.id },
+        estado: EstadoInscripcion.ACEPTADA,
+      },
+      relations: { equipo: true },
+    });
+    const inscritos = new Set(inscripciones.map(({ equipo }) => equipo.id));
+    const sinInscripcion = equipos.find(({ id }) => !inscritos.has(id));
+    if (sinInscripcion) {
+      throw new ConflictException(
+        `El equipo "${sinInscripcion.nombre}" no tiene una inscripción aceptada en el torneo "${torneo.nombre}"`,
+      );
+    }
+
+    if (grupo.cupo_equipos != null) {
+      const asignados = await this.equiposRepository.count({
+        where: { fase_grupos_id: grupo.id },
+      });
+      if (asignados + equipos.length > grupo.cupo_equipos) {
+        const disponibles = Math.max(grupo.cupo_equipos - asignados, 0);
+        throw new ConflictException(
+          `El grupo "${grupo.nombre}" admite ${grupo.cupo_equipos} equipos y solo le quedan ${disponibles} cupos disponibles`,
+        );
+      }
+    }
+
+    // save() con varias entidades se ejecuta en una sola transaccion.
+    await this.equiposRepository.save(
+      equipos.map((equipo) =>
+        Object.assign(equipo, { fase_grupos_id: grupo.id, fase_grupos: grupo }),
+      ),
+    );
+    return this.findEquiposGrupo(id);
+  }
+
+  // Saca un equipo del grupo; el equipo sigue registrado en la plataforma.
+  async quitarEquipoGrupo(
+    id: string,
+    equipoId: string,
+  ): Promise<{ message: string }> {
+    const grupo = await this.findGrupo(id);
+    const equipo = await this.equiposRepository.findOne({
+      where: { id: equipoId },
+    });
+    if (!equipo) {
+      throw new NotFoundException('El equipo no fue encontrado');
+    }
+    if (equipo.fase_grupos_id !== grupo.id) {
+      throw new ConflictException(
+        `El equipo "${equipo.nombre}" no pertenece al grupo "${grupo.nombre}"`,
+      );
+    }
+    await this.equiposRepository.save(
+      Object.assign(equipo, { fase_grupos_id: null, fase_grupos: null }),
+    );
+    return {
+      message: `El equipo "${equipo.nombre}" salió del grupo "${grupo.nombre}"`,
+    };
+  }
+
+  private async findFaseGrupos(id: string): Promise<Fase> {
+    const fase = await this.fasesRepository.findOne({
+      where: { id },
+      relations: FASE_RELATIONS,
+    });
+    if (!fase) {
+      throw new NotFoundException('El grupo no fue encontrado');
+    }
+    if (!fase.grupos) {
+      throw new BadRequestException(
+        'La fase seleccionada no es una fase de grupos',
+      );
+    }
+    return fase;
+  }
+
+  private async findGrupo(id: string): Promise<FaseGrupos> {
+    return (await this.findFaseGrupos(id)).grupos as FaseGrupos;
+  }
+
+  // Dentro de una misma etapa (torneo + numero_orden) no se repite el nombre.
+  private async assertNombreGrupoDisponible(
+    torneoId: string,
+    numeroOrden: number,
+    nombre: string,
+    excluirFaseId?: string,
+  ): Promise<void> {
+    const existente = await this.fasesRepository.findOne({
+      where: {
+        torneo: { id: torneoId },
+        numero_orden: numeroOrden,
+        grupos: { nombre: nombre.trim() },
+      },
+      relations: { grupos: true },
+    });
+    if (
+      existente &&
+      existente.id !== excluirFaseId &&
+      existente.grupos?.nombre.trim().toLowerCase() ===
+        nombre.trim().toLowerCase()
+    ) {
+      throw new ConflictException(
+        `Ya existe un grupo llamado "${nombre.trim()}" en la fase ${numeroOrden} de este torneo`,
+      );
+    }
+  }
+
   private async findTorneo(id: string): Promise<Torneo> {
     const torneo = await this.torneosRepository.findOne({ where: { id } });
     if (!torneo) {
       throw new NotFoundException('El torneo no fue encontrado');
     }
     return torneo;
+  }
+
+  // Una fase con partidos o equipos no puede cambiar de torneo.
+  private async assertSinDatosAsociados(fase: Fase): Promise<void> {
+    const partidos = await this.fasesRepository
+      .createQueryBuilder('fase')
+      .innerJoin('fase.partidos', 'partido')
+      .where('fase.id = :id', { id: fase.id })
+      .getCount();
+    const equipos = fase.grupos
+      ? await this.equiposRepository.count({
+          where: { fase_grupos_id: fase.grupos.id },
+        })
+      : 0;
+    if (partidos > 0 || equipos > 0) {
+      throw new ConflictException(
+        'No se puede cambiar el torneo de una fase que ya tiene partidos o equipos asignados',
+      );
+    }
   }
 
   // No se puede bajar el cupo por debajo de los equipos ya asignados.

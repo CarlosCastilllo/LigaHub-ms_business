@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { AsignarEquiposGrupoDto } from './dto/asignar-equipos-grupo.dto';
 import { FindFasesQueryDto } from './dto/find-fases-query.dto';
 import { CreateFaseDto } from './dto/create-fase.dto';
 import { UpdateFaseDto } from './dto/update-fase.dto';
@@ -26,6 +27,27 @@ export class FasesController {
   @Get()
   findAll(@Query() query: FindFasesQueryDto) {
     return this.fasesService.findAll(query);
+  }
+
+  @Get(':id/equipos')
+  findEquiposGrupo(@Param('id', ParseUUIDPipe) id: string) {
+    return this.fasesService.findEquiposGrupo(id);
+  }
+
+  @Post(':id/equipos')
+  asignarEquiposGrupo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AsignarEquiposGrupoDto,
+  ) {
+    return this.fasesService.asignarEquiposGrupo(id, dto);
+  }
+
+  @Delete(':id/equipos/:equipoId')
+  quitarEquipoGrupo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('equipoId', ParseUUIDPipe) equipoId: string,
+  ) {
+    return this.fasesService.quitarEquipoGrupo(id, equipoId);
   }
 
   @Get(':id')

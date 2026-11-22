@@ -109,6 +109,7 @@ describe('TorneosService', () => {
     expect(fasesRepository.find).toHaveBeenCalledWith({
       where: { torneo: { id: torneo().id } },
       relations: { torneo: true, grupos: true, final: true },
+      order: { numero_orden: 'ASC', fecha_inicio: 'ASC' },
     });
   });
 
