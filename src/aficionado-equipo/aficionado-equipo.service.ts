@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Aficionado } from '../aficionados/entities/aficionado.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
 import { CreateAficionadoEquipoDto } from './dto/create-aficionado-equipo.dto';
+import { AficionadoDeEquipoDto } from './dto/aficionado-de-equipo.dto';
 import { AficionadoEquipoResponseDto } from './dto/aficionado-equipo-response.dto';
 import { UpdateAficionadoEquipoDto } from './dto/update-aficionado-equipo.dto';
 import { AficionadoEquipo } from './entities/aficionado-equipo.entity';
@@ -41,6 +42,24 @@ export class AficionadoEquipoService {
       relations: { aficionado: true, equipo: true },
     });
     return AficionadoEquipoMapper.toResponseDtoList(relaciones);
+  }
+
+  async findAficionadosByEquipo(
+    equipoId: string,
+  ): Promise<AficionadoDeEquipoDto[]> {
+    await this.findEquipo(equipoId);
+    const relaciones = await this.relacionesRepository.find({
+      where: { equipo: { id: equipoId } },
+      relations: { aficionado: true },
+      order: { aficionado: { nombre: 'ASC' } },
+    });
+    return relaciones.map(({ id, aficionado }) => ({
+      asociacion_id: id,
+      aficionado_id: aficionado.id,
+      nombre: aficionado.nombre,
+      email: aficionado.email,
+      telefono: aficionado.telefono ?? null,
+    }));
   }
 
   async findOne(id: string): Promise<AficionadoEquipoResponseDto> {

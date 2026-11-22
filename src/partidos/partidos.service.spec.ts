@@ -11,7 +11,11 @@ import { Boleta } from '../boletas/entities/boleta.entity';
 import { EstadoPelota, Pelota } from '../pelotas/entities/pelota.entity';
 import { Escenario } from '../escenarios/entities/escenario.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
-import { Fase } from '../fases/entities/fase.entity';
+import { EstadoFase, Fase, TipoFase } from '../fases/entities/fase.entity';
+import {
+  FaseFinal,
+  ModalidadFinal,
+} from '../fases/entities/fase-final.entity';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { EstadoPartido, Partido } from './entities/partido.entity';
 import { PartidoMapper } from './mappers/partido.mapper';
@@ -20,7 +24,10 @@ import { PartidosService } from './partidos.service';
 describe('PartidosService', () => {
   let service: PartidosService;
   let partidosRepository: jest.Mocked<
-    Pick<Repository<Partido>, 'save' | 'find' | 'findOne' | 'remove'>
+    Pick<
+      Repository<Partido>,
+      'save' | 'find' | 'findOne' | 'remove' | 'count'
+    >
   >;
   let escenariosRepository: jest.Mocked<
     Pick<Repository<Escenario>, 'findOne'>
@@ -83,6 +90,7 @@ describe('PartidosService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
+      count: jest.fn(),
     };
     escenariosRepository = { findOne: jest.fn() };
     equiposRepository = { findOne: jest.fn() };
@@ -116,6 +124,7 @@ describe('PartidosService', () => {
     expect(equiposRepository.findOne).toHaveBeenCalledTimes(2);
     expect(fasesRepository.findOne).toHaveBeenCalledWith({
       where: { id: faseId },
+      relations: { grupos: true, final: true },
     });
     expect(result).toEqual(
       expect.objectContaining({
@@ -175,8 +184,88 @@ describe('PartidosService', () => {
         pelota: true,
         equipo_local: true,
         equipo_visitante: true,
-        fase: true,
+        fase: { grupos: true, final: true },
       },
+    });
+  });
+
+  function faseFinal(estado = EstadoFase.EN_CURSO): Fase {
+    return Object.assign(fase(), {
+      estado,
+      grupos: null,
+      final: Object.assign(new FaseFinal(), {
+        id: '550e8400-e29b-41d4-a716-446655440074',
+        numero_partidos: 2,
+        modalidad: ModalidadFinal.IDA_Y_VUELTA,
+      }),
+    });
+  }
+
+  describe('fase final', () => {
+    beforeEach(() => {
+      escenariosRepository.findOne.mockResolvedValue(escenario());
+    });
+
+    it('crea un partido de la fase final mientras haya cupo', async () => {
+      fasesRepository.findOne.mockResolvedValue(faseFinal());
+      partidosRepository.count.mockResolvedValue(1);
+
+      const result = await service.create(createDto);
+
+      expect(result.fase_tipo).toBe(TipoFase.FINAL);
+      expect(partidosRepository.count).toHaveBeenCalledWith({
+        where: { fase: { id: faseId } },
+      });
+    });
+
+    it('rechaza más partidos de los que admite la fase final', async () => {
+      fasesRepository.findOne.mockResolvedValue(faseFinal());
+      partidosRepository.count.mockResolvedValue(2);
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(partidosRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rechaza partidos en una fase final finalizada', async () => {
+      fasesRepository.findOne.mockResolvedValue(
+        faseFinal(EstadoFase.FINALIZADA),
+      );
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(partidosRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('no valida el cupo al reasignar a la misma fase', async () => {
+      const item = Object.assign(partido(), { fase: faseFinal() });
+      partidosRepository.findOne.mockResolvedValue(item);
+
+      await service.update(partidoId, { fase_id: faseId, goles_local: 1 });
+
+      expect(partidosRepository.count).not.toHaveBeenCalled();
+    });
+
+    it('filtra los partidos por fase', async () => {
+      const item = Object.assign(partido(), { fase: faseFinal() });
+      partidosRepository.find.mockResolvedValue([item]);
+
+      const result = await service.findAll({ fase_id: faseId });
+
+      expect(result[0].fase_tipo).toBe(TipoFase.FINAL);
+      expect(partidosRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { fase: { id: faseId } } }),
+      );
+    });
+
+    it('responde 404 al filtrar por una fase inexistente', async () => {
+      fasesRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findAll({ fase_id: faseId })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

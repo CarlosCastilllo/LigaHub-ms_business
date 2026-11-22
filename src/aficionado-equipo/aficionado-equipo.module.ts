@@ -4,11 +4,12 @@ import { Aficionado } from '../aficionados/entities/aficionado.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
 import { AficionadoEquipo } from './entities/aficionado-equipo.entity';
 import { AficionadoEquipoController } from './aficionado-equipo.controller';
+import { EquipoAficionadosController } from './equipo-aficionados.controller';
 import { AficionadoEquipoService } from './aficionado-equipo.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([AficionadoEquipo, Aficionado, Equipo])],
-  controllers: [AficionadoEquipoController],
+  controllers: [AficionadoEquipoController, EquipoAficionadosController],
   providers: [AficionadoEquipoService],
   exports: [AficionadoEquipoService],
 })

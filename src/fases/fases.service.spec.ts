@@ -14,6 +14,8 @@ import { FasesService } from './fases.service';
 import { Torneo } from '../torneos/entities/torneo.entity';
 import { Equipo } from '../equipos/entities/equipo.entity';
 import { Inscripcion } from '../inscripciones/entities/inscripcion.entity';
+import { Inscripcion } from '../inscripciones/entities/inscripcion.entity';
+import { Partido } from '../partidos/entities/partido.entity';
 
 describe('FasesService', () => {
   let service: FasesService;
@@ -357,6 +359,108 @@ describe('FasesService', () => {
       where: { fase_grupos_id: phase.grupos?.id },
     });
     expect(repository.remove).not.toHaveBeenCalled();
+  });
+
+  describe('fase final', () => {
+    it('no permite editar una fase final finalizada salvo su estado', async () => {
+      const phase = Object.assign(finalPhase(), {
+        estado: EstadoFase.FINALIZADA,
+      });
+      repository.findOne.mockResolvedValue(phase);
+      repository.save.mockResolvedValue(phase);
+
+      await expect(
+        service.update(phase.id, { numero_partidos: 3 } as UpdateFaseDto),
+      ).rejects.toBeInstanceOf(ConflictException);
+      // El formulario reenvía los mismos valores junto con el nuevo estado.
+      await expect(
+        service.update(phase.id, {
+          estado: EstadoFase.EN_CURSO,
+          numero_orden: phase.numero_orden,
+          fecha_inicio: phase.fecha_inicio,
+          fecha_fin: phase.fecha_fin,
+          torneo_id: phase.torneo_id,
+          numero_partidos: 2,
+          modalidad: ModalidadFinal.IDA_Y_VUELTA,
+        } as UpdateFaseDto),
+      ).resolves.toEqual(expect.objectContaining({ id: phase.id }));
+    });
+
+    it('no cambia la modalidad si ya tiene partidos', async () => {
+      const phase = Object.assign(finalPhase(), { partidos: [{}] });
+      repository.findOne.mockResolvedValue(phase);
+
+      await expect(
+        service.update(phase.id, {
+          modalidad: ModalidadFinal.PARTIDO_UNICO,
+        } as UpdateFaseDto),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('no baja el número de partidos por debajo de los registrados', async () => {
+      const phase = Object.assign(finalPhase(), { partidos: [{}, {}] });
+      repository.findOne.mockResolvedValue(phase);
+
+      await expect(
+        service.update(phase.id, { numero_partidos: 1 } as UpdateFaseDto),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('permite subir el número de partidos aunque tenga partidos', async () => {
+      const phase = Object.assign(finalPhase(), { partidos: [{}, {}] });
+      repository.findOne.mockResolvedValue(phase);
+      repository.save.mockImplementation(async (entity) => entity as Fase);
+
+      const result = await service.update(phase.id, {
+        numero_partidos: 4,
+      } as UpdateFaseDto);
+
+      expect(result.numero_partidos).toBe(4);
+    });
+
+    it('no elimina una fase final que no está pendiente', async () => {
+      const phase = Object.assign(finalPhase(), {
+        estado: EstadoFase.EN_CURSO,
+      });
+      repository.findOne.mockResolvedValue(phase);
+
+      await expect(service.remove(phase.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(repository.remove).not.toHaveBeenCalled();
+    });
+
+    it('lista los partidos de la fase identificados como fase final', async () => {
+      const phase = Object.assign(finalPhase(), {
+        partidos: [
+          Object.assign(new Partido(), {
+            id: 'p2',
+            fecha_hora: new Date('2026-03-25T19:00:00Z'),
+          }),
+          Object.assign(new Partido(), {
+            id: 'p1',
+            fecha_hora: new Date('2026-03-18T19:00:00Z'),
+          }),
+        ],
+      });
+      repository.findOne.mockResolvedValue(phase);
+
+      const result = await service.findPartidos(phase.id);
+
+      expect(result.map(({ id }) => id)).toEqual(['p1', 'p2']);
+      expect(
+        result.every(({ fase_tipo }) => fase_tipo === TipoFase.FINAL),
+      ).toBe(true);
+      expect(result[0].fase_id).toBe(phase.id);
+    });
+
+    it('responde 404 al listar partidos de una fase inexistente', async () => {
+      await expect(service.findPartidos('x')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
   });
 
   it('lists every phase when no type filter is given', async () => {

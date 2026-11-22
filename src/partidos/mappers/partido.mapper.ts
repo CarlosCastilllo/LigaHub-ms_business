@@ -6,6 +6,7 @@ import { CreatePartidoDto } from '../dto/create-partido.dto';
 import { PartidoResponseDto } from '../dto/partido-response.dto';
 import { UpdatePartidoDto } from '../dto/update-partido.dto';
 import { EstadoPartido, Partido } from '../entities/partido.entity';
+import { TipoFase } from '../../fases/entities/fase.entity';
 
 export class PartidoMapper {
   static toEntity(
@@ -52,6 +53,7 @@ export class PartidoMapper {
       goles_visitante: entity.goles_visitante,
       escenario_id: entity.escenario?.id ?? entity.escenario_id,
       fase_id: entity.fase?.id ?? entity.fase_id ?? null,
+      fase_tipo: PartidoMapper.faseTipo(entity),
       boletas: entity.boletas
         ? BoletaMapper.toResponseDtoList(entity.boletas)
         : undefined,
@@ -65,6 +67,13 @@ export class PartidoMapper {
         ? PelotaMapper.toResponseDto(entity.pelota)
         : undefined,
     };
+  }
+
+  // Solo se conoce el tipo si la fase se cargó con su detalle 1:1.
+  private static faseTipo(entity: Partido): TipoFase | null {
+    if (entity.fase?.final) return TipoFase.FINAL;
+    if (entity.fase?.grupos) return TipoFase.GRUPOS;
+    return null;
   }
 
   static toResponseDtoList(entities: Partido[]): PartidoResponseDto[] {

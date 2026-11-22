@@ -81,4 +81,24 @@ describe('AficionadoEquipoService', () => {
       equipo_id: equipoId,
     });
   });
+  it('lists the aficionados that follow an equipo', async () => {
+    const item = relacion();
+    Object.assign(item.aficionado, {
+      nombre: 'Ana Ruiz',
+      email: 'ana@liga.test',
+      telefono: null,
+    });
+    relacionesRepository.find.mockResolvedValue([item]);
+
+    await expect(service.findAficionadosByEquipo(equipoId)).resolves.toEqual([
+      {
+        asociacion_id: item.id,
+        aficionado_id: aficionadoId,
+        nombre: 'Ana Ruiz',
+        email: 'ana@liga.test',
+        telefono: null,
+      },
+    ]);
+    expect(equiposRepository.findOne).toHaveBeenCalledWith({ where: { id: equipoId } });
+  });
 });

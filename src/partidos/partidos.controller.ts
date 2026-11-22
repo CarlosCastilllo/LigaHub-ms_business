@@ -7,9 +7,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CreatePartidoDto } from './dto/create-partido.dto';
 import { UpdatePartidoDto } from './dto/update-partido.dto';
+import { FindPartidosQueryDto } from './dto/find-partidos-query.dto';
 import { PartidosService } from './partidos.service';
 
 @Controller('partidos')
@@ -22,8 +24,8 @@ export class PartidosController {
   }
 
   @Get()
-  findAll() {
-    return this.partidosService.findAll();
+  findAll(@Query() query: FindPartidosQueryDto) {
+    return this.partidosService.findAll(query);
   }
 
   @Get(':id')

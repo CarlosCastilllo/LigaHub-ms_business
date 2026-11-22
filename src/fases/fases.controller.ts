@@ -50,6 +50,11 @@ export class FasesController {
     return this.fasesService.quitarEquipoGrupo(id, equipoId);
   }
 
+  @Get(':id/partidos')
+  findPartidos(@Param('id', ParseUUIDPipe) id: string) {
+    return this.fasesService.findPartidos(id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.fasesService.findOne(id);

@@ -4,6 +4,7 @@ import { MetodoPagoAficionadoResponseDto } from '../../metodos-pago-aficionado/d
 
 export class AficionadoResponseDto {
   id!: string;
+  user_id!: number | null;
   nombre!: string;
   documento!: string;
   email!: string;

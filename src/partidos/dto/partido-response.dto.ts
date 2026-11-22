@@ -3,6 +3,7 @@ import { ApuestaResponseDto } from '../../apuestas/dto/apuesta-response.dto';
 import { BoletaResponseDto } from '../../boletas/dto/boleta-response.dto';
 import { PelotaResponseDto } from '../../pelotas/dto/pelota-response.dto';
 import { EstadoPartido } from '../entities/partido.entity';
+import { TipoFase } from '../../fases/entities/fase.entity';
 
 export class PartidoResponseDto {
   id!: string;
@@ -14,6 +15,8 @@ export class PartidoResponseDto {
   goles_visitante!: number;
   escenario_id!: string;
   fase_id!: string | null;
+  // GRUPOS o FINAL; permite identificar los partidos de la fase final.
+  fase_tipo!: TipoFase | null;
   boletas?: BoletaResponseDto[];
   apuestas?: ApuestaResponseDto[];
   anotaciones?: AnotacionResponseDto[];

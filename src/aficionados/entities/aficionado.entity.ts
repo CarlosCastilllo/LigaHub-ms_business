@@ -2,12 +2,22 @@ import { Apuesta } from '../../apuestas/entities/apuesta.entity';
 import { Boleta } from '../../boletas/entities/boleta.entity';
 import { MetodoPagoAficionado } from '../../metodos-pago-aficionado/entities/metodo-pago-aficionado.entity';
 import { AficionadoEquipo } from '../../aficionado-equipo/entities/aficionado-equipo.entity';
+import { decimalToNumber } from '../../common/transformers/decimal.transformer';
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('aficionados')
 export class Aficionado {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  // Usuario de ms-security que se convirtió en este aficionado (HU-GE-05).
+  @Column({
+    type: 'bigint',
+    unique: true,
+    nullable: true,
+    transformer: decimalToNumber,
+  })
+  user_id!: number | null;
 
   @Column({ type: 'varchar', length: 150 })
   nombre!: string;

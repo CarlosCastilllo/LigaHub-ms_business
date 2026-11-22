@@ -22,6 +22,8 @@ import {
 } from '../inscripciones/entities/inscripcion.entity';
 import { AsignarEquiposGrupoDto } from './dto/asignar-equipos-grupo.dto';
 import { FaseGrupos } from './entities/fase-grupos.entity';
+import { PartidoResponseDto } from '../partidos/dto/partido-response.dto';
+import { PartidoMapper } from '../partidos/mappers/partido.mapper';
 
 // Toda fase se lee junto con su detalle 1:1 para saber su tipo.
 const FASE_RELATIONS = { torneo: true, grupos: true, final: true } as const;
@@ -141,6 +143,10 @@ export class FasesService {
       );
     }
 
+    if (fase.final) {
+      await this.assertFaseFinalEditable(fase, dto);
+    }
+
     if (fase.grupos && dto.cupo_equipos !== undefined) {
       await this.assertCupoNoMenorQueAsignados(
         fase.grupos.id,
@@ -186,6 +192,11 @@ export class FasesService {
         `La fase número ${fase.numero_orden} del torneo "${fase.torneo?.nombre ?? 'seleccionado'}" tiene partidos. Elimine o reasigne esos partidos primero`,
       );
     }
+    if (fase.final && fase.estado !== EstadoFase.PENDIENTE) {
+      throw new ConflictException(
+        `La fase final número ${fase.numero_orden} ya está en curso o finalizada. Solo se pueden eliminar fases finales pendientes`,
+      );
+    }
     if (fase.grupos && fase.estado !== EstadoFase.PENDIENTE) {
       throw new ConflictException(
         `El grupo "${fase.grupos.nombre}" ya está en curso o finalizado. Solo se pueden eliminar grupos pendientes`,
@@ -208,6 +219,32 @@ export class FasesService {
     return {
       message: `Se eliminó la fase número ${fase.numero_orden} correctamente`,
     };
+  }
+
+  // Partidos que pertenecen a una fase (de grupos o final).
+  async findPartidos(id: string): Promise<PartidoResponseDto[]> {
+    const fase = await this.fasesRepository.findOne({
+      where: { id },
+      relations: {
+        ...FASE_RELATIONS,
+        partidos: {
+          equipo_local: true,
+          equipo_visitante: true,
+          escenario: true,
+        },
+      },
+    });
+    if (!fase) {
+      throw new NotFoundException('La fase no fue encontrada');
+    }
+    const partidos = [...(fase.partidos ?? [])].sort(
+      (a, b) =>
+        new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime(),
+    );
+    // Se reasigna la fase para que la respuesta indique su tipo (GRUPOS/FINAL).
+    return PartidoMapper.toResponseDtoList(
+      partidos.map((partido) => Object.assign(partido, { fase })),
+    );
   }
 
   // Equipos que conforman un grupo (fase de tipo GRUPOS).
@@ -391,6 +428,61 @@ export class FasesService {
     if (partidos > 0 || equipos > 0) {
       throw new ConflictException(
         'No se puede cambiar el torneo de una fase que ya tiene partidos o equipos asignados',
+      );
+    }
+  }
+
+  // Reglas de la fase final: si finalizó solo se puede cambiar su estado, y
+  // con partidos registrados no cambia la modalidad ni baja el número de partidos.
+  private async assertFaseFinalEditable(
+    fase: Fase,
+    dto: UpdateFaseDto,
+  ): Promise<void> {
+    if (fase.estado === EstadoFase.FINALIZADA) {
+      // Se compara contra los valores actuales: el front envía el formulario completo.
+      const actuales: Partial<Record<keyof UpdateFaseDto, unknown>> = {
+        numero_orden: fase.numero_orden,
+        fecha_inicio: fase.fecha_inicio,
+        fecha_fin: fase.fecha_fin,
+        torneo_id: fase.torneo?.id ?? fase.torneo_id,
+        numero_partidos: fase.final?.numero_partidos,
+        modalidad: fase.final?.modalidad,
+      };
+      const cambiaOtroCampo = (
+        Object.keys(actuales) as (keyof UpdateFaseDto)[]
+      ).some(
+        (campo) => dto[campo] !== undefined && dto[campo] !== actuales[campo],
+      );
+      if (cambiaOtroCampo) {
+        throw new ConflictException(
+          'La fase final ya finalizó; solo se puede cambiar su estado',
+        );
+      }
+      return;
+    }
+
+    const cambiaModalidad =
+      dto.modalidad !== undefined && dto.modalidad !== fase.final?.modalidad;
+    if (!cambiaModalidad && dto.numero_partidos === undefined) return;
+
+    const conPartidos = await this.fasesRepository.findOne({
+      where: { id: fase.id },
+      relations: { partidos: true },
+    });
+    const registrados = conPartidos?.partidos?.length ?? 0;
+    if (registrados === 0) return;
+
+    if (cambiaModalidad) {
+      throw new ConflictException(
+        'No se puede cambiar la modalidad de una fase final que ya tiene partidos registrados',
+      );
+    }
+    if (
+      dto.numero_partidos !== undefined &&
+      dto.numero_partidos < registrados
+    ) {
+      throw new ConflictException(
+        `La fase final ya tiene ${registrados} partidos registrados; el número de partidos no puede ser menor`,
       );
     }
   }

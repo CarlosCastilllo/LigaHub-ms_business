@@ -30,6 +30,7 @@ export class AficionadoMapper {
   static toResponseDto(entity: Aficionado): AficionadoResponseDto {
     return {
       id: entity.id,
+      user_id: entity.user_id ?? null,
       nombre: entity.nombre,
       documento: entity.documento,
       email: entity.email,
