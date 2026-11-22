@@ -7,6 +7,7 @@ import { App } from 'supertest/types';
 import { FasesController } from '../fases/fases.controller';
 import { FasesService } from '../fases/fases.service';
 import { TorneosController } from './torneos.controller';
+import { TorneoDesarrolloService } from './torneo-desarrollo.service';
 import { TorneosService } from './torneos.service';
 
 describe('Tournament and phase CRUD routes', () => {
@@ -48,12 +49,17 @@ describe('Tournament and phase CRUD routes', () => {
     remove: jest.fn().mockResolvedValue({ message: 'Fase deleted' }),
   };
 
+  const desarrolloService = {
+    findDesarrollo: jest.fn().mockResolvedValue({ torneo, resumen: {}, etapas: [] }),
+  };
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [TorneosController, FasesController],
       providers: [
         { provide: TorneosService, useValue: torneosService },
         { provide: FasesService, useValue: fasesService },
+        { provide: TorneoDesarrolloService, useValue: desarrolloService },
       ],
     }).compile();
 
@@ -191,5 +197,16 @@ describe('Tournament and phase CRUD routes', () => {
       new ConflictException('Torneo has fases'),
     );
     await request(server).delete(`/torneos/${torneoId}`).expect(409);
+  });
+
+  it('exposes the tournament development by UUID', async () => {
+    const server = app.getHttpServer();
+
+    await request(server).get('/torneos/no-es-uuid/desarrollo').expect(400);
+    const response = await request(server)
+      .get(`/torneos/${torneoId}/desarrollo`)
+      .expect(200);
+    expect(response.body.torneo.id).toBe(torneoId);
+    expect(desarrolloService.findDesarrollo).toHaveBeenCalledWith(torneoId);
   });
 });

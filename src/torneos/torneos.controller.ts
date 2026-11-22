@@ -10,11 +10,15 @@ import {
 } from '@nestjs/common';
 import { CreateTorneoDto } from './dto/create-torneo.dto';
 import { UpdateTorneoDto } from './dto/update-torneo.dto';
+import { TorneoDesarrolloService } from './torneo-desarrollo.service';
 import { TorneosService } from './torneos.service';
 
 @Controller('torneos')
 export class TorneosController {
-  constructor(private readonly torneosService: TorneosService) {}
+  constructor(
+    private readonly torneosService: TorneosService,
+    private readonly torneoDesarrolloService: TorneoDesarrolloService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreateTorneoDto) {
@@ -29,6 +33,12 @@ export class TorneosController {
   @Get(':id/fases')
   findFases(@Param('id', ParseUUIDPipe) id: string) {
     return this.torneosService.findFases(id);
+  }
+
+  // HU-GC-08: estructura y desarrollo del torneo en una sola consulta.
+  @Get(':id/desarrollo')
+  findDesarrollo(@Param('id', ParseUUIDPipe) id: string) {
+    return this.torneoDesarrolloService.findDesarrollo(id);
   }
 
   @Get(':id')
