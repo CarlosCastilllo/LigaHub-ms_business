@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { isDuplicateEntry } from '../common/database/is-duplicate-entry';
+import { isReferencedRow } from '../common/database/is-referenced-row';
 import { SecurityUsersClient } from '../common/security/security-users.client';
 import { CreateJugadorDto } from './dto/create-jugador.dto';
 import { JugadorResponseDto } from './dto/jugador-response.dto';
@@ -16,6 +17,8 @@ import { JugadorMapper } from './mappers/jugador.mapper';
 import { EquipoMapper } from '../equipos/mappers/equipo.mapper';
 import { HabilidadMapper } from '../habilidades/mappers/habilidad.mapper';
 import { PerfilJugadorDto } from './dto/perfil-jugador.dto';
+
+const EDAD_MINIMA_JUGADOR = 14;
 
 @Injectable()
 export class JugadoresService {
@@ -29,7 +32,7 @@ export class JugadoresService {
     dto: CreateJugadorDto,
     authorization?: string,
   ): Promise<JugadorResponseDto> {
-    this.assertFechaNoFutura(dto.fecha_nacimiento);
+    this.assertFechaNacimientoValida(dto.fecha_nacimiento);
     await this.assertUserSinJugador(dto.user_id);
     await this.securityUsers.assertUserExists(dto.user_id, authorization);
     try {
@@ -98,8 +101,11 @@ export class JugadoresService {
     dto: UpdateJugadorDto,
   ): Promise<JugadorResponseDto> {
     const jugador = await this.findJugador(id);
-    if (dto.fecha_nacimiento !== undefined) {
-      this.assertFechaNoFutura(dto.fecha_nacimiento);
+    if (
+      dto.fecha_nacimiento !== undefined &&
+      dto.fecha_nacimiento !== jugador.fecha_nacimiento
+    ) {
+      this.assertFechaNacimientoValida(dto.fecha_nacimiento);
     }
     const saved = await this.jugadoresRepository.save(
       JugadorMapper.mergeEntity(jugador, dto),
@@ -113,25 +119,69 @@ export class JugadoresService {
       relations: {
         anotaciones: true,
         posiciones_espaciales: true,
-        equipos_jugador: true,
+        equipos_jugador: { equipo: true },
         habilidades_jugador: true,
       },
     });
     if (!jugador) {
       throw new NotFoundException('El jugador no fue encontrado');
     }
-    if (
-      jugador.anotaciones?.length ||
-      jugador.posiciones_espaciales?.length ||
-      jugador.equipos_jugador?.length ||
-      jugador.habilidades_jugador?.length
-    ) {
+    this.assertEliminable(jugador);
+
+    const historialEquipos = jugador.equipos_jugador ?? [];
+    const habilidadesAsignadas = jugador.habilidades_jugador ?? [];
+    try {
+      // El historial de equipos y las asignaciones de habilidades dependen del
+      // jugador; las habilidades del catálogo no se tocan.
+      await this.jugadoresRepository.manager.transaction(async (manager) => {
+        if (historialEquipos.length) await manager.remove(historialEquipos);
+        if (habilidadesAsignadas.length) {
+          await manager.remove(habilidadesAsignadas);
+        }
+        await manager.remove(jugador);
+      });
+    } catch (error) {
+      if (isReferencedRow(error)) {
+        throw new ConflictException(
+          `No se pudo eliminar el jugador asociado al usuario ${jugador.user_id} porque se registraron nuevos datos relacionados. Intente de nuevo`,
+        );
+      }
+      throw error;
+    }
+    return { message: `Se eliminó el jugador asociado al usuario ${jugador.user_id} correctamente` };
+  }
+
+  private assertEliminable(jugador: Jugador): void {
+    const prefijo = `No se puede eliminar el jugador asociado al usuario ${jugador.user_id}`;
+    const contratoActivo = jugador.equipos_jugador?.find(
+      (relacion) => relacion.activo,
+    );
+    if (contratoActivo) {
       throw new ConflictException(
-        `El jugador asociado al usuario ${jugador.user_id} tiene anotaciones, posiciones espaciales, historial de equipos o habilidades. Elimine o reasigne esas relaciones o desactívelo`,
+        `${prefijo} porque tiene un contrato activo con el equipo "${contratoActivo.equipo?.nombre ?? contratoActivo.equipo_id}". Retírelo del equipo antes de eliminarlo`,
       );
     }
-    await this.jugadoresRepository.remove(jugador);
-    return { message: `Se eliminó el jugador asociado al usuario ${jugador.user_id} correctamente` };
+
+    const anotaciones = jugador.anotaciones?.length ?? 0;
+    const posiciones = jugador.posiciones_espaciales?.length ?? 0;
+    const registros: string[] = [];
+    if (anotaciones) {
+      registros.push(
+        anotaciones === 1 ? '1 anotación' : `${anotaciones} anotaciones`,
+      );
+    }
+    if (posiciones) {
+      registros.push(
+        posiciones === 1
+          ? '1 posición espacial'
+          : `${posiciones} posiciones espaciales`,
+      );
+    }
+    if (registros.length) {
+      throw new ConflictException(
+        `${prefijo} porque tiene registros de partidos (${registros.join(' y ')}). Desactívelo en su lugar`,
+      );
+    }
   }
 
   private async findJugador(id: string): Promise<Jugador> {
@@ -155,11 +205,18 @@ export class JugadoresService {
     );
   }
 
-  private assertFechaNoFutura(fecha: string): void {
+  private assertFechaNacimientoValida(fecha: string): void {
     const hoy = new Date().toISOString().slice(0, 10);
     if (fecha > hoy) {
       throw new BadRequestException(
         'La fecha de nacimiento no puede ser futura',
+      );
+    }
+    const anioLimite = Number(hoy.slice(0, 4)) - EDAD_MINIMA_JUGADOR;
+    const fechaLimite = `${anioLimite}${hoy.slice(4)}`;
+    if (fecha > fechaLimite) {
+      throw new BadRequestException(
+        `El jugador debe tener al menos ${EDAD_MINIMA_JUGADOR} años`,
       );
     }
   }

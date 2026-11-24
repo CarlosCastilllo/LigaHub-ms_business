@@ -156,11 +156,11 @@ Asociación N:N sin campos adicionales entre un aficionado y sus equipos preferi
 | Campo | Tipo | Reglas |
 |---|---|---|
 | `user_id` | entero | Obligatorio e inmutable. Id del usuario de ms-security (relación 1:1); único: un usuario solo puede ser un jugador (409). Business comprueba que exista consultando `GET /api/users/{id}` de ms-security con el token de quien llama (404 si no existe, 503 si ms-security no responde). |
-| `fecha_nacimiento` | fecha | Obligatoria, formato `YYYY-MM-DD`, no puede ser futura. |
+| `fecha_nacimiento` | fecha | Obligatoria, formato `YYYY-MM-DD`, no puede ser futura y el jugador debe tener al menos 14 años (en edición solo se exige si cambia la fecha). |
 | `nacionalidad` | texto | Obligatoria, máx. 100. |
 | `activo` | booleano | Opcional, por defecto `true`; `false` desactiva el jugador. |
 
-El nombre y el email del jugador son los de su usuario en ms-security. Un jugador con anotaciones, posiciones, historial de equipos o habilidades no se puede eliminar (409); en ese caso se desactiva con `activo: false`.
+El nombre y el email del jugador son los de su usuario en ms-security. Un jugador con contrato activo en un equipo, anotaciones o posiciones no se puede eliminar (409, el mensaje indica qué lo impide); en ese caso se retira del equipo o se desactiva con `activo: false`. Al eliminar un jugador se borran en una transacción su historial de equipos retirado y sus asignaciones de habilidades; las habilidades del catálogo se conservan.
 
 ### Habilidad (`habilidades`)
 
@@ -171,8 +171,9 @@ El nombre y el email del jugador son los de su usuario en ms-security. Un jugado
 
 `HabilidadJugador` es la asociación N:N sin campos extra; cada pareja
 `habilidad_id` + `jugador_id` es única. La tabla intermedia se llama
-`habilidad-jugador` (con guion). No se puede eliminar una habilidad o un jugador
-mientras tenga asociaciones; primero deben eliminarse las filas intermedias.
+`habilidad-jugador` (con guion). No se puede eliminar una habilidad mientras
+tenga asociaciones; primero deben eliminarse las filas intermedias. Al eliminar
+un jugador sus asociaciones se borran junto con él.
 
 ### Posición espacial (`posiciones_espaciales`)
 
@@ -351,8 +352,9 @@ Para registrar la posición del balón, se usa `pelota_id` en lugar de `jugador_
 }
 ```
 
-La pareja habilidad-jugador no se puede repetir. Las entidades enlazadas no se
-pueden eliminar hasta borrar sus asociaciones.
+La pareja habilidad-jugador no se puede repetir. Una habilidad no se puede
+eliminar hasta borrar sus asociaciones; al eliminar un jugador, las suyas se
+borran con él.
 
 `GET /habilidad-jugador` admite los filtros opcionales `jugador_id` y
 `habilidad_id` para consultar las habilidades de un jugador o los jugadores de

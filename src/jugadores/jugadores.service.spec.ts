@@ -110,6 +110,67 @@ describe('JugadoresService', () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
+  describe('minimum age of 14 years', () => {
+    beforeEach(() => {
+      jest.useFakeTimers({
+        now: new Date('2026-06-15T12:00:00Z'),
+        doNotFake: ['nextTick', 'queueMicrotask', 'setImmediate'],
+      });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const menorDeEdad = new BadRequestException(
+      'El jugador debe tener al menos 14 años',
+    );
+
+    it('rejects registering a jugador one day short of 14 years', async () => {
+      await expect(
+        service.create({ ...dto, fecha_nacimiento: '2012-06-16' }, authorization),
+      ).rejects.toThrow(menorDeEdad);
+      expect(repository.findOne).not.toHaveBeenCalled();
+      expect(securityUsers.assertUserExists).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('registers a jugador who turns 14 today', async () => {
+      await expect(
+        service.create({ ...dto, fecha_nacimiento: '2012-06-15' }, authorization),
+      ).resolves.toEqual(
+        expect.objectContaining({ fecha_nacimiento: '2012-06-15' }),
+      );
+    });
+
+    it('rejects changing the birth date to one under 14 years on update', async () => {
+      repository.findOne.mockResolvedValue(jugador());
+
+      await expect(
+        service.update(jugadorId, { fecha_nacimiento: '2013-01-01' }),
+      ).rejects.toThrow(menorDeEdad);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('allows editing other fields when the stored birth date is unchanged', async () => {
+      repository.findOne.mockResolvedValue(
+        Object.assign(jugador(), { fecha_nacimiento: '2015-03-01' }),
+      );
+
+      await expect(
+        service.update(jugadorId, {
+          fecha_nacimiento: '2015-03-01',
+          nacionalidad: 'Chilena',
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fecha_nacimiento: '2015-03-01',
+          nacionalidad: 'Chilena',
+        }),
+      );
+    });
+  });
+
   it('updates an existing jugador keeping the other fields', async () => {
     repository.findOne.mockResolvedValue(jugador());
 
@@ -208,36 +269,113 @@ describe('JugadoresService', () => {
     });
   });
 
-  it('prevents removing a jugador with dependent records', async () => {
-    repository.findOne.mockResolvedValue(
-      Object.assign(jugador(), { equipos_jugador: [{}] }),
-    );
+  describe('remove', () => {
+    let manager: { remove: jest.Mock<(entity: unknown) => Promise<unknown>> };
 
-    await expect(service.remove(jugadorId)).rejects.toThrow(
-      new ConflictException(
-        'El jugador asociado al usuario 7 tiene anotaciones, posiciones espaciales, historial de equipos o habilidades. Elimine o reasigne esas relaciones o desactívelo',
-      ),
-    );
-    expect(repository.remove).not.toHaveBeenCalled();
-  });
-
-  it('prevents removing a jugador assigned to habilidades', async () => {
-    repository.findOne.mockResolvedValue(
-      Object.assign(jugador(), { habilidades_jugador: [{}] }),
-    );
-
-    await expect(service.remove(jugadorId)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
-    expect(repository.remove).not.toHaveBeenCalled();
-  });
-
-  it('removes a jugador without dependent records', async () => {
-    repository.findOne.mockResolvedValue(jugador());
-
-    await expect(service.remove(jugadorId)).resolves.toEqual({
-      message: 'Se eliminó el jugador asociado al usuario 7 correctamente',
+    beforeEach(() => {
+      manager = { remove: jest.fn() };
+      manager.remove.mockImplementation(async (entity) => entity);
+      Object.assign(repository, {
+        manager: {
+          transaction: jest.fn(
+            async (work: (m: typeof manager) => Promise<unknown>) => work(manager),
+          ),
+        },
+      });
     });
-    expect(repository.remove).toHaveBeenCalledTimes(1);
+
+    it('removes a jugador without dependent records', async () => {
+      repository.findOne.mockResolvedValue(jugador());
+
+      await expect(service.remove(jugadorId)).resolves.toEqual({
+        message: 'Se eliminó el jugador asociado al usuario 7 correctamente',
+      });
+      expect(manager.remove).toHaveBeenCalledTimes(1);
+      expect(manager.remove).toHaveBeenCalledWith(
+        expect.objectContaining({ id: jugadorId }),
+      );
+    });
+
+    it('removes a jugador with retired team history and assigned habilidades, keeping the habilidades catalog', async () => {
+      const historial = [
+        { id: 'ej-1', activo: false, equipo: { nombre: 'Equipo Prueba' } },
+      ];
+      const habilidades = [
+        { id: 'hj-1', habilidad_id: 'h-1', habilidad: { id: 'h-1' } },
+      ];
+      repository.findOne.mockResolvedValue(
+        Object.assign(jugador(), {
+          equipos_jugador: historial,
+          habilidades_jugador: habilidades,
+        }),
+      );
+
+      await expect(service.remove(jugadorId)).resolves.toEqual({
+        message: 'Se eliminó el jugador asociado al usuario 7 correctamente',
+      });
+      expect(manager.remove.mock.calls.map(([entity]) => entity)).toEqual([
+        historial,
+        habilidades,
+        expect.objectContaining({ id: jugadorId }),
+      ]);
+    });
+
+    it('prevents removing a jugador with an active team contract', async () => {
+      repository.findOne.mockResolvedValue(
+        Object.assign(jugador(), {
+          equipos_jugador: [
+            { activo: false, equipo: { nombre: 'Viejo FC' } },
+            { activo: true, equipo: { nombre: 'Equipo Prueba' } },
+          ],
+        }),
+      );
+
+      await expect(service.remove(jugadorId)).rejects.toThrow(
+        new ConflictException(
+          'No se puede eliminar el jugador asociado al usuario 7 porque tiene un contrato activo con el equipo "Equipo Prueba". Retírelo del equipo antes de eliminarlo',
+        ),
+      );
+      expect(manager.remove).not.toHaveBeenCalled();
+    });
+
+    it('prevents removing a jugador with anotaciones or posiciones espaciales, naming them', async () => {
+      repository.findOne.mockResolvedValue(
+        Object.assign(jugador(), {
+          anotaciones: [{}, {}, {}],
+          posiciones_espaciales: [{}],
+        }),
+      );
+
+      await expect(service.remove(jugadorId)).rejects.toThrow(
+        new ConflictException(
+          'No se puede eliminar el jugador asociado al usuario 7 porque tiene registros de partidos (3 anotaciones y 1 posición espacial). Desactívelo en su lugar',
+        ),
+      );
+
+      repository.findOne.mockResolvedValue(
+        Object.assign(jugador(), { anotaciones: [{}] }),
+      );
+      await expect(service.remove(jugadorId)).rejects.toThrow(
+        new ConflictException(
+          'No se puede eliminar el jugador asociado al usuario 7 porque tiene registros de partidos (1 anotación). Desactívelo en su lugar',
+        ),
+      );
+      expect(manager.remove).not.toHaveBeenCalled();
+    });
+
+    it('turns a foreign key rejection during the deletion into a 409', async () => {
+      repository.findOne.mockResolvedValue(jugador());
+      manager.remove.mockRejectedValue(
+        new QueryFailedError('DELETE', [], {
+          code: 'ER_ROW_IS_REFERENCED_2',
+        } as never),
+      );
+
+      await expect(service.remove(jugadorId)).rejects.toThrow(
+        new ConflictException(
+          'No se pudo eliminar el jugador asociado al usuario 7 porque se registraron nuevos datos relacionados. Intente de nuevo',
+        ),
+      );
+    });
   });
 });
