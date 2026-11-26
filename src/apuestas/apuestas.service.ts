@@ -23,6 +23,12 @@ const APUESTA_RELATIONS = {
   metodo_pago_aficionado: { aficionado: true },
 } as const;
 
+/** Relaciones para mostrar al aficionado sus apuestas (HU-C). */
+const MI_APUESTA_RELATIONS = {
+  partido: { equipo_local: true, equipo_visitante: true },
+  metodo_pago_aficionado: { metodo_pago: true },
+} as const;
+
 @Injectable()
 export class ApuestasService {
   constructor(
@@ -56,6 +62,27 @@ export class ApuestasService {
 
   async findOne(id: string): Promise<ApuestaResponseDto> {
     return ApuestaMapper.toResponseDto(await this.findApuesta(id));
+  }
+
+  /** Apuestas del aficionado con partido y método de pago (HU-C). */
+  findByAficionado(aficionadoId: string): Promise<Apuesta[]> {
+    return this.apuestasRepository.find({
+      where: { aficionado: { id: aficionadoId } },
+      relations: MI_APUESTA_RELATIONS,
+      order: { fecha_apuesta: 'DESC' },
+    });
+  }
+
+  /** Apuesta del aficionado indicado; 404 si no existe o es de otro. */
+  async findOwned(id: string, aficionadoId: string): Promise<Apuesta> {
+    const apuesta = await this.apuestasRepository.findOne({
+      where: { id, aficionado: { id: aficionadoId } },
+      relations: MI_APUESTA_RELATIONS,
+    });
+    if (!apuesta) {
+      throw new NotFoundException('La apuesta no fue encontrada');
+    }
+    return apuesta;
   }
 
   async update(

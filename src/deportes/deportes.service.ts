@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isDuplicateEntry } from '../common/database/is-duplicate-entry';
 import { CreateDeporteDto } from './dto/create-deporte.dto';
 import { DeporteResponseDto } from './dto/deporte-response.dto';
 import { UpdateDeporteDto } from './dto/update-deporte.dto';
@@ -20,14 +21,12 @@ export class DeportesService {
   ) {}
 
   async create(dto: CreateDeporteDto): Promise<DeporteResponseDto> {
+    await this.assertNombreDisponible(dto.nombre);
     const deportePadre =
       dto.deporte_padre_id != null
         ? await this.findDeporte(dto.deporte_padre_id)
         : null;
-    const saved = await this.deportesRepository.save(
-      DeporteMapper.toEntity(dto, deportePadre),
-    );
-    return DeporteMapper.toResponseDto(saved);
+    return this.guardar(DeporteMapper.toEntity(dto, deportePadre));
   }
 
   async findAll(): Promise<DeporteResponseDto[]> {
@@ -46,6 +45,9 @@ export class DeportesService {
     dto: UpdateDeporteDto,
   ): Promise<DeporteResponseDto> {
     const deporte = await this.findDeporte(id);
+    if (dto.nombre !== undefined) {
+      await this.assertNombreDisponible(dto.nombre, id);
+    }
     if (dto.deporte_padre_id !== undefined) {
       if (dto.deporte_padre_id === null) {
         deporte.deporte_padre = null;
@@ -54,10 +56,7 @@ export class DeportesService {
         deporte.deporte_padre = await this.findDeporte(dto.deporte_padre_id);
       }
     }
-    const saved = await this.deportesRepository.save(
-      DeporteMapper.mergeEntity(deporte, dto),
-    );
-    return DeporteMapper.toResponseDto(saved);
+    return this.guardar(DeporteMapper.mergeEntity(deporte, dto));
   }
 
   async remove(id: string): Promise<{ message: string }> {
@@ -83,6 +82,36 @@ export class DeportesService {
     }
     await this.deportesRepository.remove(deporte);
     return { message: `Se eliminó el deporte "${deporte.nombre}" correctamente` };
+  }
+
+  private async guardar(deporte: Deporte): Promise<DeporteResponseDto> {
+    try {
+      const saved = await this.deportesRepository.save(deporte);
+      return DeporteMapper.toResponseDto(saved);
+    } catch (error) {
+      // Dos solicitudes simultáneas pueden superar la comprobación previa.
+      if (isDuplicateEntry(error)) {
+        throw this.duplicado(deporte.nombre);
+      }
+      throw error;
+    }
+  }
+
+  // La collation utf8mb4_unicode_ci de la columna ignora mayúsculas y tildes.
+  private async assertNombreDisponible(
+    nombre: string,
+    currentId?: string,
+  ): Promise<void> {
+    const existente = await this.deportesRepository.findOne({
+      where: { nombre },
+    });
+    if (existente && existente.id !== currentId) {
+      throw this.duplicado(nombre);
+    }
+  }
+
+  private duplicado(nombre: string): ConflictException {
+    return new ConflictException(`Ya existe un deporte llamado "${nombre}"`);
   }
 
   private async findDeporte(id: string): Promise<Deporte> {

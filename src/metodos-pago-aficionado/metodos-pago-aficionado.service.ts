@@ -14,10 +14,14 @@ import { UpdateMetodoPagoAficionadoDto } from './dto/update-metodo-pago-aficiona
 import { MetodoPagoAficionado } from './entities/metodo-pago-aficionado.entity';
 import { MetodoPagoAficionadoMapper } from './mappers/metodo-pago-aficionado.mapper';
 
-const MPA_RELATIONS = {
-  aficionado: true,
+const MI_METODO_RELATIONS = {
   metodo_pago: true,
   apuestas: true,
+} as const;
+
+const MPA_RELATIONS = {
+  aficionado: true,
+  ...MI_METODO_RELATIONS,
 } as const;
 
 @Injectable()
@@ -50,6 +54,33 @@ export class MetodosPagoAficionadoService {
       relations: MPA_RELATIONS,
     });
     return MetodoPagoAficionadoMapper.toResponseDtoList(registros);
+  }
+
+  findByAficionado(aficionadoId: string): Promise<MetodoPagoAficionado[]> {
+    return this.mpaRepository.find({
+      where: { aficionado: { id: aficionadoId } },
+      relations: MI_METODO_RELATIONS,
+      order: { fecha_registro: 'DESC' },
+    });
+  }
+
+  async findOwned(id: string, aficionadoId: string): Promise<MetodoPagoAficionado> {
+    const registro = await this.mpaRepository.findOne({
+      where: { id, aficionado: { id: aficionadoId } },
+      relations: MI_METODO_RELATIONS,
+    });
+    if (!registro) {
+      throw new NotFoundException('El método de pago no fue encontrado');
+    }
+    return registro;
+  }
+
+  async findCatalogoActivo(): Promise<Pick<MetodoPago, 'id' | 'nombre' | 'tipo'>[]> {
+    const metodos = await this.metodosPagoRepository.find({
+      where: { activo: true },
+      order: { nombre: 'ASC' },
+    });
+    return metodos.map(({ id, nombre, tipo }) => ({ id, nombre, tipo }));
   }
 
   async findOne(id: string): Promise<MetodoPagoAficionadoResponseDto> {

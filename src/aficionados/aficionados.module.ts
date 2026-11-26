@@ -13,6 +13,6 @@ import { MiAficionadoService } from './mi-aficionado/mi-aficionado.service';
   // MiAficionadoController va primero: /aficionados/me antes que /aficionados/:id.
   controllers: [MiAficionadoController, AficionadosController],
   providers: [AficionadosService, MiAficionadoService],
-  exports: [AficionadosService],
+  exports: [AficionadosService, MiAficionadoService],
 })
 export class AficionadosModule {}

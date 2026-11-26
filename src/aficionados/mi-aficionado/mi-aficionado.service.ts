@@ -35,7 +35,7 @@ export class MiAficionadoService {
   ) {}
 
   async findMine(userId: number): Promise<MiAficionadoResponseDto> {
-    const aficionado = await this.findAficionado(userId);
+    const aficionado = await this.resolverAficionado(userId);
     return this.toResponse(aficionado, await this.findAsociaciones(aficionado));
   }
 
@@ -91,7 +91,7 @@ export class MiAficionadoService {
     userId: number,
     dto: AsociarEquipoDto,
   ): Promise<EquipoAsociadoDto> {
-    const aficionado = await this.findAficionado(userId);
+    const aficionado = await this.resolverAficionado(userId);
     const [equipo] = await this.findEquiposActivos([dto.equipo_id]);
     const existente = await this.relacionesRepository.findOne({
       where: { aficionado: { id: aficionado.id }, equipo: { id: equipo.id } },
@@ -118,7 +118,7 @@ export class MiAficionadoService {
     userId: number,
     equipoId: string,
   ): Promise<{ message: string }> {
-    const aficionado = await this.findAficionado(userId);
+    const aficionado = await this.resolverAficionado(userId);
     const relacion = await this.relacionesRepository.findOne({
       where: { aficionado: { id: aficionado.id }, equipo: { id: equipoId } },
       relations: { equipo: true },
@@ -132,7 +132,7 @@ export class MiAficionadoService {
     };
   }
 
-  private async findAficionado(userId: number): Promise<Aficionado> {
+  async resolverAficionado(userId: number): Promise<Aficionado> {
     const aficionado = await this.aficionadosRepository.findOne({
       where: { user_id: userId },
     });

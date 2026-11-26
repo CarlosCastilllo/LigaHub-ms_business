@@ -4,7 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { Deporte } from './entities/deporte.entity';
 import { DeportesService } from './deportes.service';
 
@@ -19,6 +19,14 @@ describe('DeportesService', () => {
 
   function deporte(id = deporteId): Deporte {
     return Object.assign(new Deporte(), { id, ...dto });
+  }
+
+  function driverError(code: string): QueryFailedError {
+    return new QueryFailedError(
+      'query',
+      [],
+      Object.assign(new Error(code), { code }),
+    );
   }
 
   beforeEach(() => {
@@ -39,12 +47,66 @@ describe('DeportesService', () => {
   });
 
   it('creates a sport under an existing parent', async () => {
-    repository.findOne.mockResolvedValue(deporte(parentId));
+    repository.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(deporte(parentId));
 
     await expect(
       service.create({ ...dto, deporte_padre_id: parentId }),
     ).resolves.toEqual(
       expect.objectContaining({ deporte_padre_id: parentId }),
+    );
+  });
+
+  it('rejects creating a sport with a registered nombre', async () => {
+    repository.findOne.mockResolvedValue(deporte());
+
+    await expect(service.create(dto)).rejects.toThrow(
+      new ConflictException('Ya existe un deporte llamado "Fútbol"'),
+    );
+    expect(repository.findOne).toHaveBeenCalledWith({
+      where: { nombre: 'Fútbol' },
+    });
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 when a concurrent request wins the unique index', async () => {
+    repository.findOne.mockResolvedValue(null);
+    repository.save.mockRejectedValue(driverError('ER_DUP_ENTRY'));
+
+    await expect(service.create(dto)).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('does not hide unexpected persistence errors', async () => {
+    repository.findOne.mockResolvedValue(null);
+    const failure = driverError('ER_LOCK_DEADLOCK');
+    repository.save.mockRejectedValue(failure);
+
+    await expect(service.create(dto)).rejects.toBe(failure);
+  });
+
+  it('rejects renaming a sport to the nombre of another sport', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(deporte())
+      .mockResolvedValueOnce(
+        Object.assign(deporte(parentId), { nombre: 'Baloncesto' }),
+      );
+
+    await expect(
+      service.update(deporteId, { nombre: 'Baloncesto' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('allows updating a sport keeping its own nombre', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(deporte())
+      .mockResolvedValueOnce(deporte());
+
+    await expect(
+      service.update(deporteId, { nombre: 'Fútbol', descripcion: 'Nueva' }),
+    ).resolves.toEqual(
+      expect.objectContaining({ nombre: 'Fútbol', descripcion: 'Nueva' }),
     );
   });
 

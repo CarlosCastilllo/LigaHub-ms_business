@@ -1,23 +1,47 @@
 import { jest } from '@jest/globals';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { EntityManager, Not, Repository } from 'typeorm';
 import { Aficionado } from '../aficionados/entities/aficionado.entity';
+import { CUOTAS_POR_PRONOSTICO } from '../apuestas/cuotas';
+import { Equipo } from '../equipos/entities/equipo.entity';
 import { Escenario } from '../escenarios/entities/escenario.entity';
 import { Localidad } from '../localidades/entities/localidad.entity';
-import { Partido } from '../partidos/entities/partido.entity';
+import { EstadoPartido, Partido } from '../partidos/entities/partido.entity';
 import { BoletasService } from './boletas.service';
 import { CreateBoletaDto } from './dto/create-boleta.dto';
 import { Boleta, EstadoBoleta } from './entities/boleta.entity';
 
+type ManagerMock = {
+  findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  count: jest.Mock<(...args: unknown[]) => Promise<number>>;
+  save: jest.Mock<(entity: unknown) => Promise<unknown>>;
+};
+
 describe('BoletasService', () => {
   let service: BoletasService;
   let boletasRepository: jest.Mocked<
-    Pick<Repository<Boleta>, 'save' | 'find' | 'findOne' | 'remove'>
-  >;
+    Pick<
+      Repository<Boleta>,
+      'save' | 'find' | 'findOne' | 'remove' | 'createQueryBuilder'
+    >
+  > & {
+    manager: {
+      transaction: jest.Mock<
+        (cb: (manager: EntityManager) => Promise<unknown>) => Promise<unknown>
+      >;
+    };
+  };
+  let manager: ManagerMock;
   let aficionadosRepository: jest.Mocked<
     Pick<Repository<Aficionado>, 'findOne'>
   >;
-  let partidosRepository: jest.Mocked<Pick<Repository<Partido>, 'findOne'>>;
+  let partidosRepository: jest.Mocked<
+    Pick<Repository<Partido>, 'findOne' | 'find'>
+  >;
   let localidadesRepository: jest.Mocked<
     Pick<Repository<Localidad>, 'findOne'>
   >;
@@ -37,9 +61,13 @@ describe('BoletasService', () => {
     return Object.assign(new Aficionado(), { id: aficionadoId });
   }
 
-  function partido(escenarioDelPartido = escenarioId): Partido {
+  function partido(
+    escenarioDelPartido = escenarioId,
+    estado = EstadoPartido.PROGRAMADO,
+  ): Partido {
     return Object.assign(new Partido(), {
       id: partidoId,
+      estado,
       escenario: escenario(escenarioDelPartido),
     });
   }
@@ -52,6 +80,7 @@ describe('BoletasService', () => {
       id,
       nombre: 'Oriental',
       precio: 45000,
+      capacidad: 2,
       escenario: escenario(escenarioDeLaLocalidad),
     });
   }
@@ -75,14 +104,28 @@ describe('BoletasService', () => {
   };
 
   beforeEach(() => {
+    manager = {
+      findOne: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
+      count: jest.fn<(...args: unknown[]) => Promise<number>>(),
+      save: jest.fn<(entity: unknown) => Promise<unknown>>(),
+    };
+    manager.findOne.mockResolvedValue(localidad());
+    manager.count.mockResolvedValue(0);
+    manager.save.mockImplementation(async (entity) => entity);
     boletasRepository = {
       save: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
-    };
+      createQueryBuilder: jest.fn(),
+      manager: {
+        transaction: jest.fn(async (cb) =>
+          cb(manager as unknown as EntityManager),
+        ),
+      },
+    } as unknown as typeof boletasRepository;
     aficionadosRepository = { findOne: jest.fn() };
-    partidosRepository = { findOne: jest.fn() };
+    partidosRepository = { findOne: jest.fn(), find: jest.fn() };
     localidadesRepository = { findOne: jest.fn() };
     boletasRepository.save.mockImplementation(
       async (entity) => entity as Boleta,
@@ -139,6 +182,178 @@ describe('BoletasService', () => {
       BadRequestException,
     );
     expect(boletasRepository.save).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  describe('cupo por partido y localidad (HU-C)', () => {
+    beforeEach(() => {
+      aficionadosRepository.findOne.mockResolvedValue(aficionado());
+      partidosRepository.findOne.mockResolvedValue(partido());
+      localidadesRepository.findOne.mockResolvedValue(localidad());
+    });
+
+    it('locks the localidad and counts only non-annulled boletas of the partido', async () => {
+      await service.create(createDto);
+
+      expect(boletasRepository.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(manager.findOne).toHaveBeenCalledWith(Localidad, {
+        where: { id: localidadId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(manager.count).toHaveBeenCalledWith(Boleta, {
+        where: {
+          partido: { id: partidoId },
+          localidad: { id: localidadId },
+          estado: Not(EstadoBoleta.ANULADA),
+        },
+      });
+      expect(manager.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects with 409 when the localidad is sold out for the partido', async () => {
+      manager.count.mockResolvedValue(2);
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('sells the last seat while one remains', async () => {
+      manager.count.mockResolvedValue(1);
+
+      await expect(service.create(createDto)).resolves.toEqual(
+        expect.objectContaining({ estado: EstadoBoleta.ACTIVA }),
+      );
+    });
+
+    it('rejects a partido that is not programado on the fan route', async () => {
+      partidosRepository.findOne.mockResolvedValue(
+        partido(escenarioId, EstadoPartido.FINALIZADO),
+      );
+
+      await expect(
+        service.create(createDto, { soloPartidosProgramados: true }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(boletasRepository.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('keeps admitting finished partidos on the admin route', async () => {
+      partidosRepository.findOne.mockResolvedValue(
+        partido(escenarioId, EstadoPartido.FINALIZADO),
+      );
+
+      await expect(service.create(createDto)).resolves.toBeDefined();
+    });
+
+    it('does not consume cupo when a boleta is marked USADA', async () => {
+      boletasRepository.findOne.mockResolvedValue(boleta());
+
+      const result = await service.update(boletaId, {
+        estado: EstadoBoleta.USADA,
+      });
+
+      expect(result.estado).toBe(EstadoBoleta.USADA);
+      expect(boletasRepository.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects reactivating an annulled boleta when the localidad is full', async () => {
+      boletasRepository.findOne.mockResolvedValue(
+        Object.assign(boleta(), { estado: EstadoBoleta.ANULADA }),
+      );
+      manager.count.mockResolvedValue(2);
+
+      await expect(
+        service.update(boletaId, { estado: EstadoBoleta.ACTIVA }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(manager.count).toHaveBeenCalledWith(Boleta, {
+        where: expect.objectContaining({ id: Not(boletaId) }),
+      });
+    });
+  });
+
+  it('lists the boletas of one aficionado, newest first', async () => {
+    boletasRepository.find.mockResolvedValue([boleta()]);
+
+    await service.findByAficionado(aficionadoId);
+
+    expect(boletasRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { aficionado: { id: aficionadoId } },
+        order: { fecha_compra: 'DESC' },
+      }),
+    );
+  });
+
+  it('returns 404 for a boleta of another aficionado', async () => {
+    boletasRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.findOwned(boletaId, 'otro-aficionado'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(boletasRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: boletaId, aficionado: { id: 'otro-aficionado' } },
+      }),
+    );
+  });
+
+  it('lists programmed partidos with the remaining seats and the cuotas', async () => {
+    const conLocalidades = Object.assign(partido(), {
+      fecha_hora: new Date('2026-12-01T20:00:00Z'),
+      equipo_local: Object.assign(new Equipo(), { nombre: 'Tigres' }),
+      equipo_visitante: Object.assign(new Equipo(), { nombre: 'Leones' }),
+      escenario: Object.assign(escenario(), {
+        nombre: 'Estadio',
+        localidades: [
+          localidad(),
+          Object.assign(localidad(escenarioId, 'palco'), {
+            nombre: 'Palco',
+            capacidad: 10,
+          }),
+        ],
+      }),
+    });
+    partidosRepository.find.mockResolvedValue([conLocalidades]);
+    const query = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      addGroupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
+        { partido_id: partidoId, localidad_id: localidadId, vendidas: '2' },
+      ]),
+    };
+    boletasRepository.createQueryBuilder.mockReturnValue(
+      query as unknown as ReturnType<Repository<Boleta>['createQueryBuilder']>,
+    );
+
+    const [disponible] = await service.partidosDisponibles();
+
+    expect(partidosRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { estado: EstadoPartido.PROGRAMADO } }),
+    );
+    expect(disponible).toEqual(
+      expect.objectContaining({
+        equipo_local_nombre: 'Tigres',
+        equipo_visitante_nombre: 'Leones',
+        escenario_nombre: 'Estadio',
+        cuotas: CUOTAS_POR_PRONOSTICO,
+      }),
+    );
+    expect(disponible.localidades).toEqual([
+      expect.objectContaining({ nombre: 'Oriental', disponibles: 0 }),
+      expect.objectContaining({ nombre: 'Palco', disponibles: 10 }),
+    ]);
+  });
+
+  it('skips the count query when there are no programmed partidos', async () => {
+    partidosRepository.find.mockResolvedValue([]);
+
+    await expect(service.partidosDisponibles()).resolves.toEqual([]);
+    expect(boletasRepository.createQueryBuilder).not.toHaveBeenCalled();
   });
 
   it.each([

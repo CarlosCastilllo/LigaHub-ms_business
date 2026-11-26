@@ -3,6 +3,7 @@ import { Torneo } from '../../torneos/entities/torneo.entity';
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -12,11 +13,18 @@ import {
 import type { Relation } from 'typeorm';
 
 @Entity('deportes')
+@Index('UQ_deportes_nombre', ['nombre'], { unique: true })
 export class Deporte {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'varchar', length: 150 })
+  // La collation hace que el índice único ignore mayúsculas y tildes.
+  @Column({
+    type: 'varchar',
+    length: 150,
+    charset: 'utf8mb4',
+    collation: 'utf8mb4_unicode_ci',
+  })
   nombre!: string;
 
   @Column({ type: 'text' })

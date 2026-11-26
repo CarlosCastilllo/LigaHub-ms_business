@@ -32,7 +32,7 @@ describe('MetodosPagoAficionadoService', () => {
     Pick<Repository<Aficionado>, 'findOne'>
   >;
   let metodosPagoRepository: jest.Mocked<
-    Pick<Repository<MetodoPago>, 'findOne'>
+    Pick<Repository<MetodoPago>, 'find' | 'findOne'>
   >;
 
   const aficionadoId = '550e8400-e29b-41d4-a716-446655440080';
@@ -80,7 +80,7 @@ describe('MetodosPagoAficionadoService', () => {
       remove: jest.fn(),
     };
     aficionadosRepository = { findOne: jest.fn() };
-    metodosPagoRepository = { findOne: jest.fn() };
+    metodosPagoRepository = { find: jest.fn(), findOne: jest.fn() };
     mpaRepository.save.mockImplementation(async (entity) => entity as never);
     mpaRepository.find.mockResolvedValue([]);
     service = new MetodosPagoAficionadoService(
@@ -88,6 +88,52 @@ describe('MetodosPagoAficionadoService', () => {
       aficionadosRepository as unknown as Repository<Aficionado>,
       metodosPagoRepository as unknown as Repository<MetodoPago>,
     );
+  });
+
+  it('lists only the selected aficionado, with payment and bets newest first', async () => {
+    const item = registro();
+    mpaRepository.find.mockResolvedValue([item]);
+
+    await expect(service.findByAficionado(aficionadoId)).resolves.toEqual([item]);
+    expect(mpaRepository.find).toHaveBeenCalledWith({
+      where: { aficionado: { id: aficionadoId } },
+      relations: { metodo_pago: true, apuestas: true },
+      order: { fecha_registro: 'DESC' },
+    });
+  });
+
+  it('finds a registration using both its id and owner', async () => {
+    const item = registro();
+    mpaRepository.findOne.mockResolvedValue(item);
+
+    await expect(service.findOwned(mpaId, aficionadoId)).resolves.toBe(item);
+    expect(mpaRepository.findOne).toHaveBeenCalledWith({
+      where: { id: mpaId, aficionado: { id: aficionadoId } },
+      relations: { metodo_pago: true, apuestas: true },
+    });
+  });
+
+  it('returns the same 404 for someone else’s registration and an absent one', async () => {
+    mpaRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.findOwned(mpaId, 'otro-aficionado')).rejects.toThrow(
+      new NotFoundException('El método de pago no fue encontrado'),
+    );
+    await expect(service.findOwned(otroMpaId, aficionadoId)).rejects.toThrow(
+      new NotFoundException('El método de pago no fue encontrado'),
+    );
+  });
+
+  it('queries only active catalog entries and exposes only id, name and type', async () => {
+    metodosPagoRepository.find.mockResolvedValue([metodoPago()]);
+
+    await expect(service.findCatalogoActivo()).resolves.toEqual([
+      { id: metodoPagoId, nombre: 'Visa', tipo: TipoMetodoPago.TARJETA_CREDITO },
+    ]);
+    expect(metodosPagoRepository.find).toHaveBeenCalledWith({
+      where: { activo: true },
+      order: { nombre: 'ASC' },
+    });
   });
 
   it('registers an active metodo de pago for an aficionado', async () => {
